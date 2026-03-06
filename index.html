@@ -1,13 +1,35 @@
 <script type="module">
     import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
 
-    // IMPORTANT: Replace this with your actual Localtunnel or Ngrok URL
-    // Modern browsers require WSS (Secure WebSockets) for GitHub Pages (HTTPS)
-    const TUNNEL_URL = "your-unique-tunnel-name.localtunnel.me"; 
-    const socket = new WebSocket(`wss://aero-control-ak.loca.lt`);
+    // 1. Connection Setup
+    // Use the exact subdomain you created in PowerShell
+    const TUNNEL_URL = "aero-control-ak.loca.lt"; 
+    const socket = new WebSocket(`wss://${TUNNEL_URL}`);
 
-    // ... keep existing initialization (FilesetResolver, HandLandmarker) ...
+    const status = document.getElementById("status");
+    const video = document.getElementById("webcam");
 
+    // 2. Initialize MediaPipe (The "Brain")
+    const hasWebNN = 'ml' in navigator;
+    status.innerText = hasWebNN ? "NPU Active: Low Latency Mode" : "Wasm Active: Software Mode";
+
+    const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
+    const handLandmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: { 
+            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+            delegate: hasWebNN ? "WEBNN" : "GPU" 
+        },
+        runningMode: "VIDEO",
+        numHands: 1
+    });
+
+    // 3. Start Camera
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "user", width: 640, height: 480 } 
+    });
+    video.srcObject = stream;
+
+    // 4. The Prediction Loop
     async function predict() {
         const results = await handLandmarker.detectForVideo(video, performance.now());
         
@@ -22,12 +44,10 @@
                 Math.pow(tip.y - thumb.y, 2)
             );
 
-            // Send normalized coordinates and the distance metadata
-            // Format: "x, y, distance"
+            // Send: "x, y, distance"
             socket.send(`${1 - tip.x},${tip.y},${distance.toFixed(4)}`); 
         }
         requestAnimationFrame(predict);
     }
     video.onloadeddata = predict;
 </script>
-
