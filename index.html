@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Aero-Control: NPU Edition</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs" type="module"></script>
+</head>
+<body style="background: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center;">
+    <h2 style="margin-top: 20px;">AERO-CONTROL: NPU NODE</h2>
+    <div id="status" style="padding: 10px; color: #ff0;">Detecting AI Hardware...</div>
+    <video id="webcam" style="display:none;" autoplay playsinline></video>
+    <canvas id="output_canvas" style="width: 85%; border: 2px solid #0f0; border-radius: 15px; box-shadow: 0 0 20px #0f0;"></canvas>
+
+    <script type="module">
+        import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
+
+        const LAPTOP_IP = "172.17.30.15"; // Use your ipconfig address
+        const status = document.getElementById("status");
+        const socket = new WebSocket(`ws://${LAPTOP_IP}:8765`);
+
+        // 1. Check for WebNN Support
+        const hasWebNN = 'ml' in navigator;
+        status.innerText = hasWebNN ? "NPU Detected: Direct Hardware Access Active" : "Wasm Mode: Using Software Emulation";
+
+        // 2. Initialize with WebNN Delegate
+        const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
+        const handLandmarker = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: { 
+                modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                delegate: hasWebNN ? "WEBNN" : "GPU" // Force WebNN if available
+            },
+            runningMode: "VIDEO",
+            numHands: 1
+        });
+
+        const video = document.getElementById("webcam");
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
+        video.srcObject = stream;
+
+        async function predict() {
+            const results = await handLandmarker.detectForVideo(video, performance.now());
+            if (results.landmarks && results.landmarks[0] && socket.readyState === WebSocket.OPEN) {
+                const tip = results.landmarks[0][8]; // Index Tip
+                // Send: "x, y, 0"
+                socket.send(`${1 - tip.x},${tip.y},0`); 
+            }
+            requestAnimationFrame(predict);
+        }
+        video.onloadeddata = predict;
+    </script>
+</body>
+</html>
