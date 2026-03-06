@@ -4,7 +4,7 @@
     // IMPORTANT: Replace this with your actual Localtunnel or Ngrok URL
     // Modern browsers require WSS (Secure WebSockets) for GitHub Pages (HTTPS)
     const TUNNEL_URL = "your-unique-tunnel-name.localtunnel.me"; 
-    const socket = new WebSocket(`wss://${TUNNEL_URL}`);
+    const socket = new WebSocket(`wss://aero-control-ak.loca.lt`);
 
     // ... keep existing initialization (FilesetResolver, HandLandmarker) ...
 
@@ -30,3 +30,4 @@
     }
     video.onloadeddata = predict;
 </script>
+
