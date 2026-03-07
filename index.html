@@ -2,45 +2,84 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AERO-CONTROL V3.1 | Precision Node</title>
+    <title>AERO-CONTROL V3.3 | Haptic Node</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { background: #050505; color: #00ff41; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; touch-action: none; }
-        .glass-nav { background: rgba(10, 10, 10, 0.9); padding: 12px; border-bottom: 1px solid #00ff41; display: flex; justify-content: space-around; align-items: center; backdrop-filter: blur(15px); z-index: 100; position: relative; }
-        .control-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-        label { font-size: 9px; text-transform: uppercase; color: #666; font-weight: bold; }
-        select, #sensSlider { background: #000; color: #00ff41; border: 1px solid #00ff41; border-radius: 4px; padding: 2px; }
+        body { background: #000; color: #00ff41; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; touch-action: none; }
         
-        /* The Pad with Boundary Clamping */
-        #trackingContainer { position: relative; width: 90vw; height: 60vh; margin: 20px auto; background: #000; border: 1px solid #333; border-radius: 16px; overflow: hidden; box-shadow: inset 0 0 20px #111; }
-        #airCursor { position: absolute; width: 20px; height: 20px; background: #00ff41; border-radius: 50%; box-shadow: 0 0 15px #00ff41; transform: translate(-50%, -50%); pointer-events: none; z-index: 10; }
-        .btn-status { background: #00ff41; color: #000; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+        .glass-nav { 
+            background: #111; padding: 15px; border-bottom: 2px solid #00ff41; 
+            display: flex; flex-direction: column; gap: 15px; z-index: 100;
+        }
+
+        .row { display: flex; justify-content: space-around; align-items: center; width: 100%; }
+
+        .btn-status { 
+            background: #00ff41; color: #000; border: none; padding: 12px 24px; 
+            border-radius: 8px; font-weight: 900; font-size: 14px; box-shadow: 0 0 10px #00ff41;
+        }
+
+        select { background: #222; color: #00ff41; border: 1px solid #00ff41; padding: 10px; border-radius: 8px; }
+
+        #sensSlider { width: 80%; accent-color: #00ff41; }
+
+        /* PAD VISUALS */
+        #trackingContainer { 
+            position: relative; width: 92vw; height: 55vh; margin: 15px auto; 
+            background: #050505; border: 3px solid #00ff41; border-radius: 20px; 
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2); overflow: hidden;
+            transition: background 0.1s, border-color 0.1s, box-shadow 0.1s;
+        }
+
+        /* CLICK FLASH EFFECT */
+        #trackingContainer.clicking {
+            background: #222;
+            border-color: #fff;
+            box-shadow: 0 0 40px #fff;
+        }
+
+        #airCursor { 
+            position: absolute; width: 25px; height: 25px; background: #fff; 
+            border: 4px solid #00ff41; border-radius: 50%; box-shadow: 0 0 20px #00ff41; 
+            transform: translate(-50%, -50%); pointer-events: none;
+            transition: transform 0.1s;
+        }
+
+        /* CURSOR FEEDBACK */
+        #airCursor.clicking {
+            transform: translate(-50%, -50%) scale(0.7);
+            border-color: #fff;
+        }
+
+        label { font-size: 11px; font-weight: bold; color: #888; }
     </style>
 </head>
 <body>
 
     <div class="glass-nav">
-        <div class="control-item">
-            <label>Link Mode</label>
-            <select id="modeSelector">
-                <option value="laptop">Laptop</option>
-                <option value="mobile">Mobile</option>
-            </select>
+        <div class="row">
+            <div style="display:flex; flex-direction:column; align-items:center;">
+                <label>INTERACTION MODE</label>
+                <select id="modeSelector">
+                    <option value="laptop">Laptop Control</option>
+                    <option value="mobile">Mobile Scroll</option>
+                </select>
+            </div>
+            <button id="sysToggle" class="btn-status">SYSTEM: ON</button>
         </div>
-        <div class="control-item">
-            <label>Sensitivity</label>
-            <input type="range" id="sensSlider" min="1" max="50" value="25">
+        <div class="row" style="flex-direction:column;">
+            <label>SENSITIVITY (SPEED)</label>
+            <input type="range" id="sensSlider" min="1" max="100" value="40">
         </div>
-        <button id="sysToggle" class="btn-status">RUNNING</button>
     </div>
 
     <div id="trackingContainer">
         <div id="airCursor"></div>
-        <div style="position:absolute; width:100%; height:100%; background: repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(0,255,65,0.03) 40px, rgba(0,255,65,0.03) 41px); pointer-events:none;"></div>
+        <div style="width:100%; height:100%; opacity:0.05; background-image: radial-gradient(#00ff41 0.5px, transparent 0.5px); background-size: 20px 20px;"></div>
     </div>
 
     <video id="webcam" style="display:none;" autoplay playsinline></video>
-    <div id="statusText" style="text-align:center; font-size:10px; color:#444;">Aero-Bridge Active</div>
+    <div id="statusText" style="text-align:center; font-size:12px; color:#555;">NPU Spatial Engine v3.3</div>
 
     <script type="module">
         import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
@@ -49,20 +88,22 @@
         const socket = new WebSocket(`wss://${NGROK_URL}`);
 
         const airCursor = document.getElementById("airCursor");
+        const trackingPad = document.getElementById("trackingContainer");
         const sensSlider = document.getElementById("sensSlider");
         const modeSelector = document.getElementById("modeSelector");
         const sysToggle = document.getElementById("sysToggle");
+        const statusText = document.getElementById("statusText");
         const video = document.getElementById("webcam");
 
-        let smoothX = 50; 
-        let smoothY = 50;
-        const lerpFactor = 0.2; // Slightly higher for more responsiveness
+        let smoothX = 50, smoothY = 50;
+        const lerpFactor = 0.22;
+        const CLICK_THRESHOLD = 0.05; // Pinch distance to trigger click
 
         let isActive = true;
         sysToggle.onclick = () => {
             isActive = !isActive;
-            sysToggle.innerText = isActive ? "RUNNING" : "PAUSED";
-            sysToggle.style.background = isActive ? "#00ff41" : "#ff3131";
+            sysToggle.innerText = isActive ? "SYSTEM: ON" : "SYSTEM: OFF";
+            sysToggle.style.background = isActive ? "#00ff41" : "#f00";
         };
 
         const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
@@ -80,39 +121,39 @@
         async function renderLoop() {
             if (isActive) {
                 const results = await handLandmarker.detectForVideo(video, performance.now());
-                
                 if (results.landmarks && results.landmarks[0]) {
                     const tip = results.landmarks[0][8];
                     const thumb = results.landmarks[0][4];
 
-                    // 1. Calculate Target based on Hand Position
-                    const targetX = (1 - tip.x) * 100;
-                    const targetY = tip.y * 100;
+                    smoothX += ((1 - tip.x) * 100 - smoothX) * lerpFactor;
+                    smoothY += (tip.y * 100 - smoothY) * lerpFactor;
 
-                    // 2. Apply Smoothing
-                    smoothX += (targetX - smoothX) * lerpFactor;
-                    smoothY += (targetY - smoothY) * lerpFactor;
+                    const clampedX = Math.max(3, Math.min(97, smoothX));
+                    const clampedY = Math.max(3, Math.min(97, smoothY));
 
-                    // 3. CLAMPING: Prevent pointer from moving out of pad boundaries
-                    const clampedX = Math.max(2, Math.min(98, smoothX));
-                    const clampedY = Math.max(2, Math.min(98, smoothY));
-
-                    // 4. Update Visual Cursor
                     airCursor.style.left = `${clampedX}%`;
                     airCursor.style.top = `${clampedY}%`;
 
-                    // 5. Sensitivity Scaler: Higher values = massive cursor jumps on laptop
                     const multiplier = sensSlider.value / 10;
                     const clickDist = Math.sqrt(Math.pow(tip.x-thumb.x,2) + Math.pow(tip.y-thumb.y,2));
 
-                    if (socket.readyState === WebSocket.OPEN && modeSelector.value === "laptop") {
-                        // Normalize 0-1 but scale by sensitivity multiplier
-                        socket.send(`${(clampedX/100) * multiplier},${(clampedY/100) * multiplier},${clickDist.toFixed(4)}`);
+                    // --- VISUAL HAPTIC LOGIC ---
+                    if (clickDist < CLICK_THRESHOLD) {
+                        trackingPad.classList.add("clicking");
+                        airCursor.classList.add("clicking");
+                        statusText.innerText = "ACTION: AIR-CLICK";
+                    } else {
+                        trackingPad.classList.remove("clicking");
+                        airCursor.classList.remove("clicking");
+                        statusText.innerText = "Tracking Stable | NPU Active";
                     }
 
+                    if (socket.readyState === WebSocket.OPEN && modeSelector.value === "laptop") {
+                        socket.send(`${(clampedX/100)*multiplier},${(clampedY/100)*multiplier},${clickDist.toFixed(4)}`);
+                    }
                     if (modeSelector.value === "mobile") {
-                        if (clampedY < 30) window.scrollBy(0, -10 * multiplier);
-                        if (clampedY > 70) window.scrollBy(0, 10 * multiplier);
+                        if (clampedY < 25) window.scrollBy(0, -15 * multiplier);
+                        if (clampedY > 75) window.scrollBy(0, 15 * multiplier);
                     }
                 }
             }
