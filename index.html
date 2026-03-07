@@ -1,54 +1,61 @@
-<script type="module">
-    import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Aero-Control: Ngrok Bridge</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs" type="module"></script>
+</head>
+<body style="background: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center;">
+    <h2 style="margin-top: 20px;">AERO-CONTROL: NPU NODE</h2>
+    <div id="status" style="padding: 10px; color: #ff0;">Detecting AI Hardware...</div>
+    <video id="webcam" style="display:none;" autoplay playsinline></video>
+    <canvas id="output_canvas" style="width: 85%; border: 2px solid #0f0; border-radius: 15px; box-shadow: 0 0 20px #0f0;"></canvas>
 
-    // 1. Connection Setup
-    // Use the exact subdomain you created in PowerShell
-    const TUNNEL_URL = "aero-control-ak.loca.lt"; 
-    const socket = new WebSocket('wss://aero-control-ak.loca.lt');
+    <script type="module">
+        import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
 
-    const status = document.getElementById("status");
-    const video = document.getElementById("webcam");
+        // 1. NGOK BRIDGE SETUP
+        // We use 'wss://' because GitHub is HTTPS and requires Secure WebSockets
+        const NGROK_URL = "premorbidly-stomatous-gino.ngrok-free.dev";
+        const socket = new WebSocket(`wss://${NGROK_URL}`);
 
-    // 2. Initialize MediaPipe (The "Brain")
-    const hasWebNN = 'ml' in navigator;
-    status.innerText = hasWebNN ? "NPU Active: Low Latency Mode" : "Wasm Active: Software Mode";
+        const status = document.getElementById("status");
+        const video = document.getElementById("webcam");
 
-    const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
-    const handLandmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: { 
-            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-            delegate: hasWebNN ? "WEBNN" : "GPU" 
-        },
-        runningMode: "VIDEO",
-        numHands: 1
-    });
+        // 2. INITIALIZE AI ENGINE
+        const hasWebNN = 'ml' in navigator;
+        status.innerText = hasWebNN ? "NPU Detected: Hardware Acceleration Active" : "Wasm Mode: Using CPU Emulation";
 
-    // 3. Start Camera
-    const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "user", width: 640, height: 480 } 
-    });
-    video.srcObject = stream;
+        const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
+        const handLandmarker = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: { 
+                modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                delegate: hasWebNN ? "WEBNN" : "GPU" 
+            },
+            runningMode: "VIDEO",
+            numHands: 1
+        });
 
-    // 4. The Prediction Loop
-    async function predict() {
-        const results = await handLandmarker.detectForVideo(video, performance.now());
-        
-        if (results.landmarks && results.landmarks[0] && socket.readyState === WebSocket.OPEN) {
-            const landmarks = results.landmarks[0];
-            const tip = landmarks[8];   // Index Finger Tip
-            const thumb = landmarks[4]; // Thumb Tip
+        // 3. START CAMERA
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
+        video.srcObject = stream;
 
-            // Calculate Euclidean Distance for clicking
-            const distance = Math.sqrt(
-                Math.pow(tip.x - thumb.x, 2) + 
-                Math.pow(tip.y - thumb.y, 2)
-            );
+        // 4. COORDINATE STREAMING
+        async function predict() {
+            const results = await handLandmarker.detectForVideo(video, performance.now());
+            if (results.landmarks && results.landmarks[0] && socket.readyState === WebSocket.OPEN) {
+                const landmarks = results.landmarks[0];
+                const tip = landmarks[8];   // Index Finger Tip
+                const thumb = landmarks[4]; // Thumb Tip
 
-            // Send: "x, y, distance"
-            socket.send(`${1 - tip.x},${tip.y},${distance.toFixed(4)}`); 
+                // Calculate Distance for Air-Click
+                const distance = Math.sqrt(Math.pow(tip.x - thumb.x, 2) + Math.pow(tip.y - thumb.y, 2));
+
+                // Send to Laptop: "x, y, distance"
+                socket.send(`${1 - tip.x},${tip.y},${distance.toFixed(4)}`); 
+            }
+            requestAnimationFrame(predict);
         }
-        requestAnimationFrame(predict);
-    }
-    video.onloadeddata = predict;
-</script>
-
+        video.onloadeddata = predict;
+    </script>
+</body>
+</html>
