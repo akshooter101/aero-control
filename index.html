@@ -1,57 +1,107 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Aero-Control: Ngrok Bridge</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs" type="module"></script>
+    <title>Aero-Control V3 Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        /* CSS: The Modern UI Styling */
+        body { background: #0a0a0a; color: #0f0; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
+        .nav-bar { background: rgba(20,20,20,0.9); padding: 15px; border-bottom: 1px solid #0f0; display: flex; justify-content: space-around; align-items: center; backdrop-filter: blur(10px); z-index: 100; position: relative; }
+        .control-group { display: flex; flex-direction: column; align-items: center; font-size: 12px; }
+        select, input[type="range"] { background: #000; color: #0f0; border: 1px solid #0f0; border-radius: 5px; margin-top: 5px; }
+        #trackingPad { position: relative; width: 90vw; height: 65vh; margin: 20px auto; background: #111; border: 2px solid #0f0; border-radius: 20px; box-shadow: 0 0 30px rgba(0,255,0,0.1); overflow: hidden; }
+        #airCursor { position: absolute; width: 25px; height: 25px; background: #0f0; border-radius: 50%; box-shadow: 0 0 20px #0f0; transform: translate(-50%, -50%); pointer-events: none; }
+        .btn-toggle { background: #0f0; color: #000; font-weight: bold; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+    </style>
 </head>
-<body style="background: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center;">
-    <h2 style="margin-top: 20px;">AERO-CONTROL: NPU NODE</h2>
-    <div id="status" style="padding: 10px; color: #ff0;">Detecting AI Hardware...</div>
+<body>
+
+    <div class="nav-bar">
+        <div class="control-group">
+            <label>MODE</label>
+            <select id="modeSelect">
+                <option value="laptop">Laptop Control</option>
+                <option value="mobile">Mobile Scroll</option>
+                <option value="hybrid">Hybrid Mode</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>SENSITIVITY</label>
+            <input type="range" id="sensitivity" min="1" max="15" value="8">
+        </div>
+        <button id="toggleSystem" class="btn-toggle">SYSTEM ON</button>
+    </div>
+
+    <div id="trackingPad">
+        <div id="airCursor"></div>
+        <div style="position:absolute; bottom:15px; width:100%; text-align:center; opacity:0.3; letter-spacing: 5px;">SPATIAL GRID ACTIVE</div>
+    </div>
+
     <video id="webcam" style="display:none;" autoplay playsinline></video>
-    <canvas id="output_canvas" style="width: 85%; border: 2px solid #0f0; border-radius: 15px; box-shadow: 0 0 20px #0f0;"></canvas>
+    <div id="status" style="text-align: center; color: #888; font-size: 12px;">Initializing AI NPU Engine...</div>
 
     <script type="module">
         import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
 
-        // 1. NGOK BRIDGE SETUP
-        // We use 'wss://' because GitHub is HTTPS and requires Secure WebSockets
+        // 1. Setup & Elements
         const NGROK_URL = "premorbidly-stomatous-gino.ngrok-free.dev";
         const socket = new WebSocket(`wss://${NGROK_URL}`);
-
+        
+        const airCursor = document.getElementById("airCursor");
+        const sensitivitySlider = document.getElementById("sensitivity");
+        const modeSelect = document.getElementById("modeSelect");
+        const toggleBtn = document.getElementById("toggleSystem");
         const status = document.getElementById("status");
         const video = document.getElementById("webcam");
 
-        // 2. INITIALIZE AI ENGINE
-        const hasWebNN = 'ml' in navigator;
-        status.innerText = hasWebNN ? "NPU Detected: Hardware Acceleration Active" : "Wasm Mode: Using CPU Emulation";
+        let isSystemOn = true;
+        toggleBtn.onclick = () => {
+            isSystemOn = !isSystemOn;
+            toggleBtn.innerText = isSystemOn ? "SYSTEM ON" : "SYSTEM OFF";
+            toggleBtn.style.background = isSystemOn ? "#0f0" : "#f00";
+        };
 
+        // 2. Load MediaPipe
         const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
         const handLandmarker = await HandLandmarker.createFromOptions(vision, {
             baseOptions: { 
                 modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-                delegate: hasWebNN ? "WEBNN" : "GPU" 
+                delegate: "GPU" 
             },
-            runningMode: "VIDEO",
-            numHands: 1
+            runningMode: "VIDEO", numHands: 1
         });
 
-        // 3. START CAMERA
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
         video.srcObject = stream;
 
-        // 4. COORDINATE STREAMING
+        // 3. Logic Loop
         async function predict() {
+            if (!isSystemOn) { requestAnimationFrame(predict); return; }
+
             const results = await handLandmarker.detectForVideo(video, performance.now());
-            if (results.landmarks && results.landmarks[0] && socket.readyState === WebSocket.OPEN) {
+            if (results.landmarks && results.landmarks[0]) {
                 const landmarks = results.landmarks[0];
-                const tip = landmarks[8];   // Index Finger Tip
-                const thumb = landmarks[4]; // Thumb Tip
+                const tip = landmarks[8];
+                const sens = sensitivitySlider.value / 8;
 
-                // Calculate Distance for Air-Click
-                const distance = Math.sqrt(Math.pow(tip.x - thumb.x, 2) + Math.pow(tip.y - thumb.y, 2));
+                // Move visual cursor on phone screen
+                airCursor.style.left = `${(1 - tip.x) * 100}%`;
+                airCursor.style.top = `${tip.y * 100}%`;
 
-                // Send to Laptop: "x, y, distance"
-                socket.send(`${1 - tip.x},${tip.y},${distance.toFixed(4)}`); 
+                const dist = Math.sqrt(Math.pow(tip.x - landmarks[4].x, 2) + Math.pow(tip.y - landmarks[4].y, 2));
+                const currentMode = modeSelect.value;
+
+                // ROUTE 1: Laptop (via Ngrok)
+                if ((currentMode === "laptop" || currentMode === "hybrid") && socket.readyState === WebSocket.OPEN) {
+                    socket.send(`${(1 - tip.x) * sens},${tip.y * sens},${dist.toFixed(4)}`);
+                }
+
+                // ROUTE 2: Mobile Scroll
+                if (currentMode === "mobile" || currentMode === "hybrid") {
+                    if (tip.y < 0.2) window.scrollBy(0, -30 * sens);
+                    if (tip.y > 0.8) window.scrollBy(0, 30 * sens);
+                }
+                status.innerText = "Tracking Active";
             }
             requestAnimationFrame(predict);
         }
