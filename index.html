@@ -4,7 +4,7 @@
     // 1. Connection Setup
     // Use the exact subdomain you created in PowerShell
     const TUNNEL_URL = "aero-control-ak.loca.lt"; 
-    const socket = new WebSocket(`wss://${TUNNEL_URL}`);
+    const socket = new WebSocket('wss://aero-control-ak.loca.lt');
 
     const status = document.getElementById("status");
     const video = document.getElementById("webcam");
@@ -51,3 +51,4 @@
     }
     video.onloadeddata = predict;
 </script>
+
