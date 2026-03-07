@@ -2,188 +2,118 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AERO-CONTROL V3 | Spatial Dashboard</title>
+    <title>AERO-CONTROL V3.1 | Precision Node</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { background: #070707; color: #00ff41; font-family: 'Segoe UI', Roboto, sans-serif; margin: 0; overflow: hidden; }
+        body { background: #050505; color: #00ff41; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; touch-action: none; }
+        .glass-nav { background: rgba(10, 10, 10, 0.9); padding: 12px; border-bottom: 1px solid #00ff41; display: flex; justify-content: space-around; align-items: center; backdrop-filter: blur(15px); z-index: 100; position: relative; }
+        .control-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        label { font-size: 9px; text-transform: uppercase; color: #666; font-weight: bold; }
+        select, #sensSlider { background: #000; color: #00ff41; border: 1px solid #00ff41; border-radius: 4px; padding: 2px; }
         
-        /* Modern UI Glass Bar */
-        .glass-nav { 
-            background: rgba(15, 15, 15, 0.85); 
-            padding: 15px; 
-            border-bottom: 1px solid #00ff41; 
-            display: flex; 
-            justify-content: space-around; 
-            align-items: center; 
-            backdrop-filter: blur(12px); 
-            z-index: 100; 
-            position: relative;
-        }
-
-        .control-item { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-        
-        label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888; }
-
-        select, input[type="range"] { 
-            background: #000; 
-            color: #00ff41; 
-            border: 1px solid #00ff41; 
-            border-radius: 4px; 
-            outline: none;
-        }
-
-        /* Spatial Tracking Canvas */
-        #trackingContainer { 
-            position: relative; 
-            width: 92vw; 
-            height: 65vh; 
-            margin: 20px auto; 
-            background: radial-gradient(circle, #111 0%, #050505 100%); 
-            border: 1px solid rgba(0, 255, 65, 0.3); 
-            border-radius: 24px; 
-            box-shadow: 0 0 40px rgba(0, 255, 65, 0.05);
-        }
-
-        #airCursor { 
-            position: absolute; 
-            width: 22px; 
-            height: 22px; 
-            background: #00ff41; 
-            border-radius: 50%; 
-            box-shadow: 0 0 20px #00ff41, 0 0 40px #00ff41; 
-            transform: translate(-50%, -50%); 
-            pointer-events: none; 
-            z-index: 10;
-        }
-
-        .btn-status { 
-            background: #00ff41; 
-            color: #000; 
-            border: none; 
-            padding: 8px 16px; 
-            border-radius: 6px; 
-            font-weight: 900; 
-            cursor: pointer;
-            transition: 0.3s;
-        }
-
-        #statusText { text-align: center; margin-top: 10px; font-size: 12px; color: #555; }
+        /* The Pad with Boundary Clamping */
+        #trackingContainer { position: relative; width: 90vw; height: 60vh; margin: 20px auto; background: #000; border: 1px solid #333; border-radius: 16px; overflow: hidden; box-shadow: inset 0 0 20px #111; }
+        #airCursor { position: absolute; width: 20px; height: 20px; background: #00ff41; border-radius: 50%; box-shadow: 0 0 15px #00ff41; transform: translate(-50%, -50%); pointer-events: none; z-index: 10; }
+        .btn-status { background: #00ff41; color: #000; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 11px; }
     </style>
 </head>
 <body>
 
     <div class="glass-nav">
         <div class="control-item">
-            <label>Mode</label>
+            <label>Link Mode</label>
             <select id="modeSelector">
-                <option value="laptop">Laptop Link</option>
-                <option value="mobile">Local Scroll</option>
-                <option value="hybrid">Dual Mode</option>
+                <option value="laptop">Laptop</option>
+                <option value="mobile">Mobile</option>
             </select>
         </div>
         <div class="control-item">
-            <label>Stability</label>
-            <input type="range" id="sensRange" min="1" max="20" value="10">
+            <label>Sensitivity</label>
+            <input type="range" id="sensSlider" min="1" max="50" value="25">
         </div>
-        <button id="sysToggle" class="btn-status">SYSTEM ACTIVE</button>
+        <button id="sysToggle" class="btn-status">RUNNING</button>
     </div>
 
     <div id="trackingContainer">
         <div id="airCursor"></div>
-        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:100%; text-align:center; opacity:0.1; font-size:40px; pointer-events:none;">SPATIAL GRID</div>
+        <div style="position:absolute; width:100%; height:100%; background: repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(0,255,65,0.03) 40px, rgba(0,255,65,0.03) 41px); pointer-events:none;"></div>
     </div>
 
     <video id="webcam" style="display:none;" autoplay playsinline></video>
-    <div id="statusText">Initializing NPU AI Core...</div>
+    <div id="statusText" style="text-align:center; font-size:10px; color:#444;">Aero-Bridge Active</div>
 
     <script type="module">
         import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
 
-        // 1. SYSTEM CONFIGURATION
         const NGROK_URL = "premorbidly-stomatous-gino.ngrok-free.dev";
         const socket = new WebSocket(`wss://${NGROK_URL}`);
 
         const airCursor = document.getElementById("airCursor");
-        const sensRange = document.getElementById("sensRange");
+        const sensSlider = document.getElementById("sensSlider");
         const modeSelector = document.getElementById("modeSelector");
         const sysToggle = document.getElementById("sysToggle");
-        const statusText = document.getElementById("statusText");
         const video = document.getElementById("webcam");
 
-        // 2. SMOOTHING ENGINE (LERP)
-        let smoothX = 0;
-        let smoothY = 0;
-        const lerpFactor = 0.18; // Adjust for smoothness vs speed
+        let smoothX = 50; 
+        let smoothY = 50;
+        const lerpFactor = 0.2; // Slightly higher for more responsiveness
 
         let isActive = true;
         sysToggle.onclick = () => {
             isActive = !isActive;
-            sysToggle.innerText = isActive ? "SYSTEM ACTIVE" : "SYSTEM PAUSED";
+            sysToggle.innerText = isActive ? "RUNNING" : "PAUSED";
             sysToggle.style.background = isActive ? "#00ff41" : "#ff3131";
         };
 
-        // 3. AI HAND TRACKING INITIALIZATION
         const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
         const handLandmarker = await HandLandmarker.createFromOptions(vision, {
             baseOptions: { 
                 modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
                 delegate: "GPU" 
             },
-            runningMode: "VIDEO", 
-            numHands: 1
+            runningMode: "VIDEO", numHands: 1
         });
 
-        // 4. VOICE ENGINE (JARVIS)
-        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (SpeechRec) {
-            const recognition = new SpeechRec();
-            recognition.continuous = true;
-            recognition.onresult = (e) => {
-                const cmd = e.results[e.results.length - 1][0].transcript.trim().toLowerCase();
-                statusText.innerText = `Jarvis: "${cmd}"`;
-                if (socket.readyState === WebSocket.OPEN) socket.send(`VOICE:${cmd}`);
-            };
-            recognition.start();
-        }
-
-        // 5. MEDIA STREAM
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
         video.srcObject = stream;
 
-        // 6. MAIN PROCESSING LOOP
         async function renderLoop() {
             if (isActive) {
                 const results = await handLandmarker.detectForVideo(video, performance.now());
                 
                 if (results.landmarks && results.landmarks[0]) {
-                    const tip = results.landmarks[0][8]; // Index Finger
-                    const thumb = results.landmarks[0][4]; // Thumb
+                    const tip = results.landmarks[0][8];
+                    const thumb = results.landmarks[0][4];
 
-                    // Apply Smoothing
+                    // 1. Calculate Target based on Hand Position
                     const targetX = (1 - tip.x) * 100;
                     const targetY = tip.y * 100;
+
+                    // 2. Apply Smoothing
                     smoothX += (targetX - smoothX) * lerpFactor;
                     smoothY += (targetY - smoothY) * lerpFactor;
 
-                    // Update UI Cursor
-                    airCursor.style.left = `${smoothX}%`;
-                    airCursor.style.top = `${smoothY}%`;
+                    // 3. CLAMPING: Prevent pointer from moving out of pad boundaries
+                    const clampedX = Math.max(2, Math.min(98, smoothX));
+                    const clampedY = Math.max(2, Math.min(98, smoothY));
 
-                    // Calculate Interaction Data
-                    const sensitivity = sensRange.value / 10;
-                    const clickDist = Math.sqrt(Math.pow(tip.x - thumb.x, 2) + Math.pow(tip.y - thumb.y, 2));
-                    const mode = modeSelector.value;
+                    // 4. Update Visual Cursor
+                    airCursor.style.left = `${clampedX}%`;
+                    airCursor.style.top = `${clampedY}%`;
 
-                    // Execute Logic based on Mode
-                    if ((mode === "laptop" || mode === "hybrid") && socket.readyState === WebSocket.OPEN) {
-                        socket.send(`${(smoothX/100)*sensitivity},${(smoothY/100)*sensitivity},${clickDist.toFixed(4)}`);
+                    // 5. Sensitivity Scaler: Higher values = massive cursor jumps on laptop
+                    const multiplier = sensSlider.value / 10;
+                    const clickDist = Math.sqrt(Math.pow(tip.x-thumb.x,2) + Math.pow(tip.y-thumb.y,2));
+
+                    if (socket.readyState === WebSocket.OPEN && modeSelector.value === "laptop") {
+                        // Normalize 0-1 but scale by sensitivity multiplier
+                        socket.send(`${(clampedX/100) * multiplier},${(clampedY/100) * multiplier},${clickDist.toFixed(4)}`);
                     }
 
-                    if (mode === "mobile" || mode === "hybrid") {
-                        if (smoothY < 25) window.scrollBy(0, -25 * sensitivity);
-                        if (smoothY > 75) window.scrollBy(0, 25 * sensitivity);
+                    if (modeSelector.value === "mobile") {
+                        if (clampedY < 30) window.scrollBy(0, -10 * multiplier);
+                        if (clampedY > 70) window.scrollBy(0, 10 * multiplier);
                     }
-                    statusText.innerText = "Tracking Stable | NPU Active";
                 }
             }
             requestAnimationFrame(renderLoop);
