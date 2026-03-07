@@ -2,16 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AERO-CONTROL V3.3 | Haptic Node</title>
+    <title>AERO-CONTROL V3.4 | Voice & Precision</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { background: #000; color: #00ff41; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; touch-action: none; }
         .glass-nav { background: #111; padding: 15px; border-bottom: 2px solid #00ff41; display: flex; flex-direction: column; gap: 15px; z-index: 100; }
         .row { display: flex; justify-content: space-around; align-items: center; width: 100%; }
-        .btn-status { background: #00ff41; color: #000; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 900; font-size: 14px; box-shadow: 0 0 10px #00ff41; }
+        .btn-status { background: #00ff41; color: #000; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 900; font-size: 14px; box-shadow: 0 0 10px #00ff41; cursor: pointer; }
+        .btn-voice { background: #ff3131; color: #000; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; font-size: 11px; cursor: pointer; margin-top: 5px; }
         select { background: #222; color: #00ff41; border: 1px solid #00ff41; padding: 10px; border-radius: 8px; }
         #sensSlider { width: 80%; accent-color: #00ff41; }
-        #trackingContainer { position: relative; width: 92vw; height: 55vh; margin: 15px auto; background: #050505; border: 3px solid #00ff41; border-radius: 20px; box-shadow: 0 0 20px rgba(0, 255, 65, 0.2); overflow: hidden; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
+        #trackingContainer { position: relative; width: 92vw; height: 50vh; margin: 15px auto; background: #050505; border: 3px solid #00ff41; border-radius: 20px; box-shadow: 0 0 20px rgba(0, 255, 65, 0.2); overflow: hidden; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
         #trackingContainer.clicking { background: #222; border-color: #fff; box-shadow: 0 0 40px #fff; }
         #airCursor { position: absolute; width: 25px; height: 25px; background: #fff; border: 4px solid #00ff41; border-radius: 50%; box-shadow: 0 0 20px #00ff41; transform: translate(-50%, -50%); pointer-events: none; transition: transform 0.1s; }
         #airCursor.clicking { transform: translate(-50%, -50%) scale(0.7); border-color: #fff; }
@@ -29,7 +30,10 @@
                     <option value="mobile">Mobile Scroll</option>
                 </select>
             </div>
-            <button id="sysToggle" class="btn-status">SYSTEM: ON</button>
+            <div style="display:flex; flex-direction:column; align-items:center;">
+                <button id="sysToggle" class="btn-status">SYSTEM: ON</button>
+                <button id="voiceToggle" class="btn-voice">VOICE: OFF</button>
+            </div>
         </div>
         <div class="row" style="flex-direction:column;">
             <label>SENSITIVITY (SPEED)</label>
@@ -43,7 +47,7 @@
     </div>
 
     <video id="webcam" style="display:none;" autoplay playsinline></video>
-    <div id="statusText" style="text-align:center; font-size:12px; color:#555;">NPU Spatial Engine v3.3</div>
+    <div id="statusText" style="text-align:center; font-size:12px; color:#555;">NPU Spatial Engine v3.4</div>
 
     <script type="module">
         import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
@@ -56,13 +60,18 @@
         const sensSlider = document.getElementById("sensSlider");
         const modeSelector = document.getElementById("modeSelector");
         const sysToggle = document.getElementById("sysToggle");
+        const voiceToggle = document.getElementById("voiceToggle");
         const statusText = document.getElementById("statusText");
         const video = document.getElementById("webcam");
 
         let smoothX = 0.5, smoothY = 0.5; // Start in center
         const lerpFactor = 0.25;
-        const CLICK_THRESHOLD = 0.05;
+        
+        // --- FIX 1: TIGHTER PINCH THRESHOLD ---
+        // Changed from 0.05 to 0.03. You now must bring fingers much closer to click.
+        const CLICK_THRESHOLD = 0.03; 
 
+        // --- SYSTEM TOGGLES ---
         let isActive = true;
         sysToggle.onclick = () => {
             isActive = !isActive;
@@ -70,6 +79,45 @@
             sysToggle.style.background = isActive ? "#00ff41" : "#f00";
         };
 
+        // --- FIX 2 & 3: VOICE COMMAND ENGINE ---
+        let isVoiceActive = false;
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+
+        if (SpeechRec) {
+            recognition = new SpeechRec();
+            recognition.continuous = true;
+            recognition.onresult = (e) => {
+                if (!isVoiceActive) return; // Ignore if toggled off
+                const cmd = e.results[e.results.length - 1][0].transcript.trim().toLowerCase();
+                statusText.innerText = `Jarvis: "${cmd}"`;
+                
+                // Send voice command to Python Receiver
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(`VOICE:${cmd}`);
+                }
+            };
+            // Auto-restart if browser pauses it while active
+            recognition.onend = () => {
+                if (isVoiceActive) recognition.start();
+            };
+        }
+
+        voiceToggle.onclick = () => {
+            isVoiceActive = !isVoiceActive;
+            voiceToggle.innerText = isVoiceActive ? "VOICE: ON" : "VOICE: OFF";
+            voiceToggle.style.background = isVoiceActive ? "#00ff41" : "#ff3131";
+            
+            if (isVoiceActive && recognition) {
+                recognition.start();
+                statusText.innerText = "Jarvis Listening...";
+            } else if (recognition) {
+                recognition.stop();
+                statusText.innerText = "Voice Deactivated.";
+            }
+        };
+
+        // --- AI VISION ENGINE ---
         const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
         const handLandmarker = await HandLandmarker.createFromOptions(vision, {
             baseOptions: { 
@@ -89,24 +137,19 @@
                     const tip = results.landmarks[0][8];
                     const thumb = results.landmarks[0][4];
 
-                    // 1. Get raw flipped coordinates
                     const rawX = 1 - tip.x; 
                     const rawY = tip.y;
 
-                    // 2. Center-Anchored Sensitivity
                     const sens = sensSlider.value / 10; 
                     const scaledX = (rawX - 0.5) * sens + 0.5;
                     const scaledY = (rawY - 0.5) * sens + 0.5;
 
-                    // 3. Clamp between 0.01 and 0.99 to keep it on screen
                     const clampedX = Math.max(0.01, Math.min(0.99, scaledX));
                     const clampedY = Math.max(0.01, Math.min(0.99, scaledY));
 
-                    // 4. Smooth the coordinates
                     smoothX += (clampedX - smoothX) * lerpFactor;
                     smoothY += (clampedY - smoothY) * lerpFactor;
 
-                    // Update UI Cursor
                     airCursor.style.left = `${smoothX * 100}%`;
                     airCursor.style.top = `${smoothY * 100}%`;
 
@@ -115,14 +158,12 @@
                     if (clickDist < CLICK_THRESHOLD) {
                         trackingPad.classList.add("clicking");
                         airCursor.classList.add("clicking");
-                        statusText.innerText = "ACTION: AIR-CLICK";
+                        if (!isVoiceActive) statusText.innerText = "ACTION: AIR-CLICK";
                     } else {
                         trackingPad.classList.remove("clicking");
                         airCursor.classList.remove("clicking");
-                        statusText.innerText = "Tracking Stable | NPU Active";
                     }
 
-                    // 5. Send pre-smoothed, pre-calculated 0-1 data to Python
                     if (socket.readyState === WebSocket.OPEN && modeSelector.value === "laptop") {
                         socket.send(`${smoothX},${smoothY},${clickDist.toFixed(4)}`);
                     }
