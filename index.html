@@ -2,52 +2,148 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AERO-CONTROL V3.4 | Voice & Precision</title>
+    <title>AeroOS | Spatial Interface</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { background: #000; color: #00ff41; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; touch-action: none; }
-        .glass-nav { background: #111; padding: 15px; border-bottom: 2px solid #00ff41; display: flex; flex-direction: column; gap: 15px; z-index: 100; }
-        .row { display: flex; justify-content: space-around; align-items: center; width: 100%; }
-        .btn-status { background: #00ff41; color: #000; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 900; font-size: 14px; box-shadow: 0 0 10px #00ff41; cursor: pointer; }
-        .btn-voice { background: #ff3131; color: #000; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; font-size: 11px; cursor: pointer; margin-top: 5px; }
-        select { background: #222; color: #00ff41; border: 1px solid #00ff41; padding: 10px; border-radius: 8px; }
-        #sensSlider { width: 80%; accent-color: #00ff41; }
-        #trackingContainer { position: relative; width: 92vw; height: 50vh; margin: 15px auto; background: #050505; border: 3px solid #00ff41; border-radius: 20px; box-shadow: 0 0 20px rgba(0, 255, 65, 0.2); overflow: hidden; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
-        #trackingContainer.clicking { background: #222; border-color: #fff; box-shadow: 0 0 40px #fff; }
-        #airCursor { position: absolute; width: 25px; height: 25px; background: #fff; border: 4px solid #00ff41; border-radius: 50%; box-shadow: 0 0 20px #00ff41; transform: translate(-50%, -50%); pointer-events: none; transition: transform 0.1s; }
-        #airCursor.clicking { transform: translate(-50%, -50%) scale(0.7); border-color: #fff; }
-        label { font-size: 11px; font-weight: bold; color: #888; }
+        /* --- PREMIUM UI VARIABLES --- */
+        :root {
+            --bg-deep: #020617;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --accent: #38bdf8; /* Sleek Sky Blue */
+            --accent-glow: rgba(56, 189, 248, 0.3);
+            --text-main: #f8fafc;
+            --text-muted: #64748b;
+        }
+
+        body { 
+            background: radial-gradient(circle at top right, #0f172a, var(--bg-deep)); 
+            color: var(--text-main); 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; height: 100vh; overflow: hidden; touch-action: none;
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+        }
+
+        /* --- FROSTED GLASS CONTROL CENTER --- */
+        .control-hub { 
+            width: 90vw; margin-top: 20px; padding: 16px 20px; 
+            background: var(--glass-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border); border-radius: 24px; 
+            display: flex; flex-direction: column; gap: 16px; box-sizing: border-box;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+
+        label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 6px; display: block; }
+
+        /* Custom Elegant Select */
+        select { 
+            appearance: none; background: rgba(0,0,0,0.2); color: var(--text-main); 
+            border: 1px solid var(--glass-border); padding: 10px 16px; border-radius: 12px; 
+            font-size: 14px; outline: none; width: 140px; text-align: center;
+        }
+
+        /* Pill Buttons */
+        .pill-btn {
+            padding: 10px 20px; border-radius: 30px; border: 1px solid transparent;
+            font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-sys { background: var(--text-main); color: var(--bg-deep); }
+        .btn-sys.active { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent-glow); }
+        
+        .btn-voice { background: transparent; color: var(--text-muted); border-color: var(--glass-border); }
+        .btn-voice.active { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.2); }
+
+        /* Custom iOS-Style Slider */
+        input[type="range"] { 
+            -webkit-appearance: none; width: 100%; background: transparent; 
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 6px; background: rgba(255,255,255,0.1); border-radius: 10px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
+            background: var(--accent); margin-top: -6px; box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* --- THE SPATIAL TRACKING PAD --- */
+        #trackingContainer { 
+            position: relative; width: 90vw; height: 50vh; margin-top: 20px; 
+            background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.0) 100%);
+            border: 1px solid var(--glass-border); border-radius: 32px; 
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.5); overflow: hidden;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        /* Subtle Dot Matrix */
+        .pad-grid {
+            position: absolute; width: 100%; height: 100%; opacity: 0.15;
+            background-image: radial-gradient(var(--text-muted) 1px, transparent 1px); background-size: 24px 24px;
+        }
+
+        /* Elegant Interaction States */
+        #trackingContainer.clicking { border-color: var(--accent); box-shadow: inset 0 0 60px var(--accent-glow); }
+
+        /* The Spatial Ring (Cursor) */
+        #airCursor { 
+            position: absolute; width: 32px; height: 32px; 
+            border: 2px solid var(--accent); border-radius: 50%; 
+            background: rgba(56, 189, 248, 0.1); backdrop-filter: blur(4px);
+            transform: translate(-50%, -50%); pointer-events: none; 
+            transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            display: flex; justify-content: center; align-items: center;
+        }
+        
+        /* Inner dot for precision */
+        #airCursor::after {
+            content: ''; width: 6px; height: 6px; background: var(--accent); border-radius: 50%;
+        }
+
+        #airCursor.clicking { transform: translate(-50%, -50%) scale(0.6); background: var(--accent); }
+
+        /* Floating Status Pill */
+        #statusText {
+            margin-top: 20px; padding: 8px 16px; background: rgba(0,0,0,0.4); 
+            border: 1px solid var(--glass-border); border-radius: 20px;
+            font-size: 12px; font-weight: 500; color: var(--text-muted); letter-spacing: 0.5px;
+        }
+
+        video { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="glass-nav">
+    <div class="control-hub">
         <div class="row">
-            <div style="display:flex; flex-direction:column; align-items:center;">
-                <label>INTERACTION MODE</label>
+            <div>
+                <label>Target OS</label>
                 <select id="modeSelector">
-                    <option value="laptop">Laptop Control</option>
-                    <option value="mobile">Mobile Scroll</option>
+                    <option value="laptop">Desktop Node</option>
+                    <option value="mobile">Local Native</option>
                 </select>
             </div>
-            <div style="display:flex; flex-direction:column; align-items:center;">
-                <button id="sysToggle" class="btn-status">SYSTEM: ON</button>
-                <button id="voiceToggle" class="btn-voice">VOICE: OFF</button>
+            <div style="display: flex; gap: 8px;">
+                <button id="sysToggle" class="pill-btn btn-sys active">System On</button>
+                <button id="voiceToggle" class="pill-btn btn-voice">Mic Off</button>
             </div>
         </div>
-        <div class="row" style="flex-direction:column;">
-            <label>SENSITIVITY (SPEED)</label>
+        <div>
+            <label style="display: flex; justify-content: space-between;">
+                <span>Gesture Velocity</span>
+                <span id="sensReadout" style="color: var(--accent);">1.5x</span>
+            </label>
             <input type="range" id="sensSlider" min="10" max="30" value="15">
         </div>
     </div>
 
     <div id="trackingContainer">
+        <div class="pad-grid"></div>
         <div id="airCursor"></div>
-        <div style="width:100%; height:100%; opacity:0.05; background-image: radial-gradient(#00ff41 0.5px, transparent 0.5px); background-size: 20px 20px;"></div>
     </div>
 
-    <video id="webcam" style="display:none;" autoplay playsinline></video>
-    <div id="statusText" style="text-align:center; font-size:12px; color:#555;">NPU Spatial Engine v3.4</div>
+    <video id="webcam" autoplay playsinline></video>
+    <div id="statusText">Initializing Neural Engine...</div>
 
     <script type="module">
         import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
@@ -58,28 +154,29 @@
         const airCursor = document.getElementById("airCursor");
         const trackingPad = document.getElementById("trackingContainer");
         const sensSlider = document.getElementById("sensSlider");
+        const sensReadout = document.getElementById("sensReadout");
         const modeSelector = document.getElementById("modeSelector");
         const sysToggle = document.getElementById("sysToggle");
         const voiceToggle = document.getElementById("voiceToggle");
         const statusText = document.getElementById("statusText");
         const video = document.getElementById("webcam");
 
-        let smoothX = 0.5, smoothY = 0.5; // Start in center
-        const lerpFactor = 0.25;
-        
-        // --- FIX 1: TIGHTER PINCH THRESHOLD ---
-        // Changed from 0.05 to 0.03. You now must bring fingers much closer to click.
+        // --- ADAPTIVE ENGINE VARIABLES ---
+        let smoothX = 0.5, smoothY = 0.5;
+        let prevTargetX = 0.5, prevTargetY = 0.5;
         const CLICK_THRESHOLD = 0.03; 
 
-        // --- SYSTEM TOGGLES ---
+        // Update Slider UI
+        sensSlider.oninput = () => { sensReadout.innerText = (sensSlider.value / 10).toFixed(1) + "x"; };
+
+        // --- UI TOGGLES ---
         let isActive = true;
         sysToggle.onclick = () => {
             isActive = !isActive;
-            sysToggle.innerText = isActive ? "SYSTEM: ON" : "SYSTEM: OFF";
-            sysToggle.style.background = isActive ? "#00ff41" : "#f00";
+            sysToggle.innerText = isActive ? "System On" : "System Off";
+            sysToggle.classList.toggle("active", isActive);
         };
 
-        // --- FIX 2 & 3: VOICE COMMAND ENGINE ---
         let isVoiceActive = false;
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition = null;
@@ -88,36 +185,29 @@
             recognition = new SpeechRec();
             recognition.continuous = true;
             recognition.onresult = (e) => {
-                if (!isVoiceActive) return; // Ignore if toggled off
+                if (!isVoiceActive) return;
                 const cmd = e.results[e.results.length - 1][0].transcript.trim().toLowerCase();
-                statusText.innerText = `Jarvis: "${cmd}"`;
-                
-                // Send voice command to Python Receiver
-                if (socket.readyState === WebSocket.OPEN) {
-                    socket.send(`VOICE:${cmd}`);
-                }
+                statusText.innerText = `Heard: "${cmd}"`;
+                if (socket.readyState === WebSocket.OPEN) socket.send(`VOICE:${cmd}`);
             };
-            // Auto-restart if browser pauses it while active
-            recognition.onend = () => {
-                if (isVoiceActive) recognition.start();
-            };
+            recognition.onend = () => { if (isVoiceActive) recognition.start(); };
         }
 
         voiceToggle.onclick = () => {
             isVoiceActive = !isVoiceActive;
-            voiceToggle.innerText = isVoiceActive ? "VOICE: ON" : "VOICE: OFF";
-            voiceToggle.style.background = isVoiceActive ? "#00ff41" : "#ff3131";
+            voiceToggle.innerText = isVoiceActive ? "Mic Live" : "Mic Off";
+            voiceToggle.classList.toggle("active", isVoiceActive);
             
             if (isVoiceActive && recognition) {
                 recognition.start();
-                statusText.innerText = "Jarvis Listening...";
+                statusText.innerText = "Acoustic Sensors Active";
             } else if (recognition) {
                 recognition.stop();
-                statusText.innerText = "Voice Deactivated.";
+                statusText.innerText = "Tracking Stable";
             }
         };
 
-        // --- AI VISION ENGINE ---
+        // --- NPU INITIALIZATION ---
         const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
         const handLandmarker = await HandLandmarker.createFromOptions(vision, {
             baseOptions: { 
@@ -130,6 +220,7 @@
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
         video.srcObject = stream;
 
+        // --- THE RENDER LOOP (V4 Adaptive Physics) ---
         async function renderLoop() {
             if (isActive && video.readyState >= 2) {
                 const results = await handLandmarker.detectForVideo(video, performance.now());
@@ -139,16 +230,23 @@
 
                     const rawX = 1 - tip.x; 
                     const rawY = tip.y;
-
                     const sens = sensSlider.value / 10; 
-                    const scaledX = (rawX - 0.5) * sens + 0.5;
-                    const scaledY = (rawY - 0.5) * sens + 0.5;
+                    
+                    const targetX = Math.max(0.02, Math.min(0.98, (rawX - 0.5) * sens + 0.5));
+                    const targetY = Math.max(0.02, Math.min(0.98, (rawY - 0.5) * sens + 0.5));
 
-                    const clampedX = Math.max(0.01, Math.min(0.99, scaledX));
-                    const clampedY = Math.max(0.01, Math.min(0.99, scaledY));
+                    // ADAPTIVE VELOCITY FILTER
+                    const distanceMoved = Math.sqrt(Math.pow(targetX - prevTargetX, 2) + Math.pow(targetY - prevTargetY, 2));
+                    let dynamicLerp = 0.15; 
+                    
+                    if (distanceMoved < 0.002) dynamicLerp = 0.0; // Deadzone freeze
+                    else if (distanceMoved > 0.05) dynamicLerp = 0.6; // High-speed catchup
+                    else dynamicLerp = 0.25; // Normal tracking
 
-                    smoothX += (clampedX - smoothX) * lerpFactor;
-                    smoothY += (clampedY - smoothY) * lerpFactor;
+                    smoothX += (targetX - smoothX) * dynamicLerp;
+                    smoothY += (targetY - smoothY) * dynamicLerp;
+
+                    prevTargetX = targetX; prevTargetY = targetY;
 
                     airCursor.style.left = `${smoothX * 100}%`;
                     airCursor.style.top = `${smoothY * 100}%`;
@@ -158,14 +256,13 @@
                     if (clickDist < CLICK_THRESHOLD) {
                         trackingPad.classList.add("clicking");
                         airCursor.classList.add("clicking");
-                        if (!isVoiceActive) statusText.innerText = "ACTION: AIR-CLICK";
                     } else {
                         trackingPad.classList.remove("clicking");
                         airCursor.classList.remove("clicking");
                     }
 
                     if (socket.readyState === WebSocket.OPEN && modeSelector.value === "laptop") {
-                        socket.send(`${smoothX},${smoothY},${clickDist.toFixed(4)}`);
+                        socket.send(`${smoothX.toFixed(4)},${smoothY.toFixed(4)},${clickDist.toFixed(4)}`);
                     }
                 }
             }
