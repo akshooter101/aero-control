@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AeroOS | Performance Core V6</title>
+    <title>AeroOS | Gesture Core V6.1</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         :root {
@@ -12,21 +12,20 @@
         }
         body { background: radial-gradient(circle at top right, #0f172a, var(--bg-deep)); color: var(--text-main); font-family: -apple-system, sans-serif; margin: 0; height: 100vh; overflow: hidden; touch-action: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
         
-        /* --- 1. THE 16:9 SPATIAL PAD (MOVED TO TOP) --- */
         #trackingContainer { 
             position: relative; width: 92vw; max-width: 800px; aspect-ratio: 16 / 9; 
             background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.0) 100%);
             border: 1px solid var(--glass-border); border-radius: 24px; 
             box-shadow: inset 0 0 40px rgba(0,0,0,0.5); overflow: hidden;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
         }
         .pad-grid { position: absolute; width: 100%; height: 100%; opacity: 0.15; background-image: radial-gradient(var(--text-muted) 1px, transparent 1px); background-size: 24px 24px; }
-        #trackingContainer.clicking { border-color: var(--accent); box-shadow: inset 0 0 60px var(--accent-glow); background: rgba(56, 189, 248, 0.05); }
+        #trackingContainer.clicking { border-color: var(--accent); box-shadow: inset 0 0 60px var(--accent-glow); background: rgba(56, 189, 248, 0.1); }
+        #trackingContainer.double-clicking { border-color: #fff; box-shadow: inset 0 0 80px #fff; background: rgba(255, 255, 255, 0.2); }
         
-        #airCursor { position: absolute; width: 32px; height: 32px; border: 2px solid var(--accent); border-radius: 50%; background: rgba(56, 189, 248, 0.1); backdrop-filter: blur(4px); transform: translate(-50%, -50%); pointer-events: none; display: flex; justify-content: center; align-items: center; }
+        #airCursor { position: absolute; width: 32px; height: 32px; border: 2px solid var(--accent); border-radius: 50%; background: rgba(56, 189, 248, 0.1); backdrop-filter: blur(4px); transform: translate(-50%, -50%); pointer-events: none; display: flex; justify-content: center; align-items: center; transition: border-color 0.2s; }
         #airCursor::after { content: ''; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; }
 
-        /* --- 2. CONTROL HUB (MOVED TO BOTTOM) --- */
         .control-hub { width: 92vw; max-width: 800px; padding: 15px 20px; background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid var(--glass-border); border-radius: 20px; display: flex; flex-direction: column; gap: 15px; box-sizing: border-box; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); }
         .row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
         label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; display: block; }
@@ -39,8 +38,7 @@
         input[type="range"]::-webkit-slider-runnable-track { height: 4px; background: rgba(255,255,255,0.1); border-radius: 10px; }
         input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: var(--accent); margin-top: -7px; box-shadow: 0 0 10px var(--accent-glow); }
 
-        /* --- 3. LIVE COMMAND STATUS --- */
-        #statusTerminal { padding: 12px; background: rgba(0,0,0,0.6); border: 1px solid var(--glass-border); border-radius: 12px; font-family: monospace; font-size: 13px; color: var(--accent); text-align: center; letter-spacing: 1px; }
+        #statusTerminal { padding: 12px; background: rgba(0,0,0,0.6); border: 1px solid var(--glass-border); border-radius: 12px; font-family: monospace; font-size: 13px; color: var(--accent); text-align: center; letter-spacing: 1px; transition: all 0.2s; }
 
         video { display: none; }
     </style>
@@ -50,10 +48,10 @@
     <div id="trackingContainer"><div class="pad-grid"></div><div id="airCursor"></div></div>
 
     <div class="control-hub">
-        <div id="statusTerminal">SYSTEM STANDBY</div>
+        <div id="statusTerminal">[ SYSTEM STANDBY ]</div>
         <div>
             <label style="display: flex; justify-content: space-between;"><span>Kinetic Speed</span><span id="sensReadout" style="color: var(--accent);">1.5x</span></label>
-            <input type="range" id="sensSlider" min="10" max="30" value="15">
+            <input type="range" id="sensSlider" min="10" max="40" value="15">
         </div>
         <button id="sysToggle" class="pill-btn btn-sys active">System Active</button>
     </div>
@@ -74,24 +72,33 @@
         const statusTerminal = document.getElementById("statusTerminal");
         const video = document.getElementById("webcam");
 
-        // --- PREDICTIVE FILTER VARIABLES ---
         let smoothX = 0.5, smoothY = 0.5;
         let prevTargetX = 0.5, prevTargetY = 0.5;
         const PREDICTION_FACTOR = 1.2; 
 
-        // --- DWELL-CLICK VARIABLES ---
+        // --- NEW DWELL TIMERS (30fps baseline) ---
         let hoverFrames = 0;
-        const HOVER_MAX = 35; // Frames required to trigger click (~1 second)
+        const HOVER_SINGLE = 30; // 1 second
+        const HOVER_DOUBLE = 45; // 1.5 seconds
         let dwellAnchorX = 0.5, dwellAnchorY = 0.5;
 
-        // --- GESTURE TRACKING VARIABLES ---
-        let prevWristY = 0;
+        // --- GESTURE & UI VARIABLES ---
+        let prevWristX = 0, prevWristY = 0;
         let gestureCooldown = 0;
+        let statusTimer = 0; // Fixes the invisible status bug
 
         sensSlider.oninput = () => { sensReadout.innerText = (sensSlider.value / 10).toFixed(1) + "x"; };
 
         let isActive = true;
         sysToggle.onclick = () => { isActive = !isActive; sysToggle.innerText = isActive ? "System Active" : "System Offline"; sysToggle.classList.toggle("active", isActive); };
+
+        // --- UI ALERT SYSTEM ---
+        function sendCommandAlert(msg) {
+            statusTerminal.innerText = `[ CMD: ${msg} ]`;
+            statusTerminal.style.background = "rgba(56, 189, 248, 0.3)";
+            statusTerminal.style.color = "#fff";
+            statusTimer = 60; // Keep on screen for ~2 seconds
+        }
 
         const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
         const handLandmarker = await HandLandmarker.createFromOptions(vision, {
@@ -107,37 +114,58 @@
         async function renderLoop() {
             if (isActive && video.readyState >= 2) {
                 const results = await handLandmarker.detectForVideo(video, performance.now());
+                
+                // Process UI Timer
+                if (statusTimer > 0) {
+                    statusTimer--;
+                    if (statusTimer === 0) {
+                        statusTerminal.innerText = `[ TRACKING ACTIVE ]`;
+                        statusTerminal.style.background = "rgba(0,0,0,0.6)";
+                        statusTerminal.style.color = "var(--accent)";
+                    }
+                }
+
                 if (results.landmarks && results.landmarks[0]) {
                     const lm = results.landmarks[0];
                     const tip = lm[8], thumb = lm[4], wrist = lm[0];
 
-                    // --- 1. REALME GESTURE CLASSIFICATION ---
                     if (gestureCooldown > 0) gestureCooldown--;
 
                     const indexUp = isFingerUp(lm, 8, 6), middleUp = isFingerUp(lm, 12, 10), ringUp = isFingerUp(lm, 16, 14), pinkyUp = isFingerUp(lm, 20, 18);
                     const openHand = indexUp && middleUp && ringUp && pinkyUp;
                     const threeFingers = indexUp && middleUp && ringUp && !pinkyUp;
+                    const peaceSign = indexUp && middleUp && !ringUp && !pinkyUp && !isFingerUp(lm, 4, 3);
                     const thumbsUp = !indexUp && !middleUp && !ringUp && !pinkyUp && (lm[4].y < lm[3].y);
                     const avgTipToThumbDist = (Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y) + Math.hypot(lm[12].x - lm[4].x, lm[12].y - lm[4].y) + Math.hypot(lm[16].x - lm[4].x, lm[16].y - lm[4].y)) / 3;
 
                     let triggeredGesture = null;
 
                     if (gestureCooldown === 0) {
-                        const wristVelocity = wrist.y - prevWristY;
-                        if (openHand && Math.abs(wristVelocity) > 0.04) triggeredGesture = wristVelocity < 0 ? "SCROLL_UP" : "SCROLL_DOWN";
+                        const wristVelocityX = wrist.x - prevWristX;
+                        const wristVelocityY = wrist.y - prevWristY;
+                        
+                        // 4-Way Open Hand Swipes
+                        if (openHand) {
+                            if (Math.abs(wristVelocityY) > 0.04 && Math.abs(wristVelocityY) > Math.abs(wristVelocityX)) {
+                                triggeredGesture = wristVelocityY < 0 ? "SCROLL_UP" : "SCROLL_DOWN";
+                            } else if (Math.abs(wristVelocityX) > 0.04 && Math.abs(wristVelocityX) > Math.abs(wristVelocityY)) {
+                                // Flipped for front-facing camera mirror
+                                triggeredGesture = wristVelocityX > 0 ? "SWIPE_LEFT" : "SWIPE_RIGHT";
+                            }
+                        } 
+                        else if (peaceSign) triggeredGesture = "RIGHT_CLICK";
                         else if (threeFingers && !openHand) triggeredGesture = "SCREENSHOT";
                         else if (avgTipToThumbDist < 0.04 && !openHand) triggeredGesture = "PINCH_5";
                         else if (thumbsUp) triggeredGesture = "THUMBS_UP";
 
                         if (triggeredGesture && socket.readyState === WebSocket.OPEN) {
                             socket.send(`GEST:${triggeredGesture}`);
-                            statusTerminal.innerText = `[ CMD SENT: ${triggeredGesture} ]`;
+                            sendCommandAlert(triggeredGesture);
                             gestureCooldown = 40; 
                         }
                     }
-                    prevWristY = wrist.y;
+                    prevWristX = wrist.x; prevWristY = wrist.y;
 
-                    // --- 2. PREDICTIVE CURSOR MATH ---
                     const rawX = 1 - tip.x, rawY = tip.y;
                     const sens = sensSlider.value / 10; 
                     const targetX = Math.max(0.02, Math.min(0.98, (rawX - 0.5) * sens + 0.5));
@@ -154,33 +182,41 @@
                     smoothY += (predictedY - smoothY) * dynamicLerp;
                     prevTargetX = targetX; prevTargetY = targetY;
 
-                    // --- 3. DWELL CLICK (HOVER TO CLICK) ---
+                    // --- ENHANCED DWELL CLICK ENGINE ---
                     const drift = Math.hypot(smoothX - dwellAnchorX, smoothY - dwellAnchorY);
                     if (drift < 0.015) { 
-                        // Cursor is mostly still
                         hoverFrames++;
-                        if (hoverFrames === HOVER_MAX) {
+                        
+                        if (hoverFrames === HOVER_SINGLE) {
                             if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:CLICK`);
-                            statusTerminal.innerText = `[ CMD SENT: LEFT CLICK ]`;
+                            sendCommandAlert("SINGLE CLICK");
                             trackingPad.classList.add("clicking");
-                        } else if (hoverFrames < HOVER_MAX) {
-                            // Shrink animation indicating a click is loading
-                            const scale = 1 - (hoverFrames / HOVER_MAX) * 0.5;
+                        } 
+                        else if (hoverFrames === HOVER_DOUBLE) {
+                            if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:DOUBLE_CLICK`);
+                            sendCommandAlert("DOUBLE CLICK");
+                            trackingPad.classList.replace("clicking", "double-clicking");
+                            airCursor.style.borderColor = "#fff";
+                        } 
+                        else if (hoverFrames < HOVER_SINGLE) {
+                            const scale = 1 - (hoverFrames / HOVER_SINGLE) * 0.5;
+                            airCursor.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                        } 
+                        else if (hoverFrames < HOVER_DOUBLE) {
+                            const scale = 0.5 - ((hoverFrames - HOVER_SINGLE) / (HOVER_DOUBLE - HOVER_SINGLE)) * 0.3;
                             airCursor.style.transform = `translate(-50%, -50%) scale(${scale})`;
                         }
                     } else {
-                        // Movement detected, reset dwell timer
                         hoverFrames = 0;
                         dwellAnchorX = smoothX; dwellAnchorY = smoothY;
                         airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
-                        trackingPad.classList.remove("clicking");
-                        if (gestureCooldown === 0) statusTerminal.innerText = `[ TRACKING ACTIVE ]`;
+                        airCursor.style.borderColor = "var(--accent)";
+                        trackingPad.classList.remove("clicking", "double-clicking");
                     }
 
                     airCursor.style.left = `${smoothX * 100}%`;
                     airCursor.style.top = `${smoothY * 100}%`;
 
-                    // Send pure coordinate data (Distance is removed to save bandwidth)
                     if (socket.readyState === WebSocket.OPEN) {
                         socket.send(`${smoothX.toFixed(4)},${smoothY.toFixed(4)}`);
                     }
