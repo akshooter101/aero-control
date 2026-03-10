@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AeroOS | Spatial Grasp V7.0</title>
+    <title>AeroOS | Navigation Core V6.6</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         :root {
@@ -26,10 +26,8 @@
         }
         .pad-grid { position: absolute; width: 100%; height: 100%; opacity: 0.15; background-image: radial-gradient(var(--text-muted) 1px, transparent 1px); background-size: 24px 24px; }
         
-        /* Interaction States */
         #trackingContainer.clicking { border-color: var(--accent); box-shadow: inset 0 0 60px var(--accent-glow); background: rgba(56, 189, 248, 0.1); }
         #trackingContainer.double-clicking { border-color: #fff; box-shadow: inset 0 0 80px #fff; background: rgba(255, 255, 255, 0.2); }
-        #trackingContainer.dragging { border-color: #ef4444; box-shadow: inset 0 0 60px rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.05); }
         
         #airCursor { position: absolute; width: 32px; height: 32px; border: 2px solid var(--accent); border-radius: 50%; background: rgba(56, 189, 248, 0.1); backdrop-filter: blur(4px); transform: translate(-50%, -50%); pointer-events: none; display: flex; justify-content: center; align-items: center; transition: border-color 0.2s, background 0.2s; }
         #airCursor::after { content: ''; width: 6px; height: 6px; background: inherit; border-radius: 50%; }
@@ -92,20 +90,17 @@
         let prevTargetX = 0.5, prevTargetY = 0.5;
         const PREDICTION_FACTOR = 1.2; 
 
-        // Timers & States
+        // Timers & States (0.4s Single Click, 0.8s Double Click)
         let hoverFrames = 0;
         const HOVER_SINGLE = 12; 
         const HOVER_DOUBLE = 24; 
         let dwellAnchorX = 0.5, dwellAnchorY = 0.5;
         let isCursorLocked = false;
         
-        // --- NEW DRAG STATE ---
-        let isDragging = false;
-        
         const LOCK_TOLERANCE = 0.02;  
         const BREAKAWAY_FORCE = 0.06; 
 
-        let prevWristX = 0, prevWristY = 0;
+        let prevWristY = 0;
         let gestureCooldown = 0;
         let statusTimer = 0; 
 
@@ -123,9 +118,9 @@
             else sendCommandAlert("ILLUMINATION OFFLINE");
         };
 
-        function sendCommandAlert(msg, color = "rgba(56, 189, 248, 0.3)") {
+        function sendCommandAlert(msg) {
             statusTerminal.innerText = `[ CMD: ${msg} ]`;
-            statusTerminal.style.background = color;
+            statusTerminal.style.background = "rgba(56, 189, 248, 0.3)";
             statusTerminal.style.color = "#fff";
             statusTimer = 60; 
         }
@@ -147,7 +142,7 @@
                 
                 if (statusTimer > 0) {
                     statusTimer--;
-                    if (statusTimer === 0 && !isDragging) {
+                    if (statusTimer === 0) {
                         statusTerminal.innerText = `[ TRACKING ACTIVE ]`;
                         statusTerminal.style.background = "rgba(0,0,0,0.6)";
                         statusTerminal.style.color = "var(--accent)";
@@ -156,55 +151,36 @@
 
                 if (results.landmarks && results.landmarks[0]) {
                     const lm = results.landmarks[0];
-                    const tip = lm[8], thumb = lm[4], wrist = lm[0];
+                    const tip = lm[8], wrist = lm[0];
 
                     if (gestureCooldown > 0) gestureCooldown--;
 
+                    // Logic States
                     const indexUp = isFingerUp(lm, 8, 6), middleUp = isFingerUp(lm, 12, 10), ringUp = isFingerUp(lm, 16, 14), pinkyUp = isFingerUp(lm, 20, 18);
                     const openHand = indexUp && middleUp && ringUp && pinkyUp;
                     const threeFingers = indexUp && middleUp && ringUp && !pinkyUp;
                     const peaceSign = indexUp && middleUp && !ringUp && !pinkyUp && !isFingerUp(lm, 4, 3);
-                    const thumbsUp = !indexUp && !middleUp && !ringUp && !pinkyUp && (lm[4].y < lm[3].y);
+                    const fingersFolded = !indexUp && !middleUp && !ringUp && !pinkyUp;
+                    
+                    // Thumb Logic (Using Middle Knuckle as Center Reference)
+                    const thumbUp = fingersFolded && (lm[4].y < lm[9].y - 0.05);
+                    const thumbLeft = fingersFolded && (lm[4].x > lm[9].x + 0.05) && Math.abs(lm[4].y - lm[9].y) < 0.1; 
+                    const thumbRight = fingersFolded && (lm[4].x < lm[9].x - 0.05) && Math.abs(lm[4].y - lm[9].y) < 0.1; 
+
                     const avgTipToThumbDist = (Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y) + Math.hypot(lm[12].x - lm[4].x, lm[12].y - lm[4].y) + Math.hypot(lm[16].x - lm[4].x, lm[16].y - lm[4].y)) / 3;
 
-                    // --- CLOSED FIST DETECTION ---
-                    const closedFist = !indexUp && !middleUp && !ringUp && !pinkyUp && !thumbsUp;
-
-                    // --- DRAG STATE MACHINE ---
-                    if (closedFist && !isDragging) {
-                        isDragging = true;
-                        if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:DRAG_START`);
-                        sendCommandAlert("DRAG INITIATED", "rgba(239, 68, 68, 0.5)"); // Red Alert
-                        trackingPad.classList.add("dragging");
-                        airCursor.style.borderColor = "#ef4444";
-                        airCursor.style.background = "rgba(239, 68, 68, 0.2)";
-                    } 
-                    else if (!closedFist && isDragging) {
-                        isDragging = false;
-                        if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:DRAG_END`);
-                        sendCommandAlert("DRAG RELEASED");
-                        trackingPad.classList.remove("dragging");
-                        airCursor.style.borderColor = "var(--accent)";
-                        airCursor.style.background = "rgba(56, 189, 248, 0.1)";
-                    }
-
-                    // --- ONE-OFF GESTURES (Only trigger if not dragging) ---
-                    if (gestureCooldown === 0 && !isDragging) {
+                    // Gestures Firing
+                    if (gestureCooldown === 0) {
                         let triggeredGesture = null;
-                        const wristVelocityX = wrist.x - prevWristX;
                         const wristVelocityY = wrist.y - prevWristY;
                         
-                        if (openHand) {
-                            if (Math.abs(wristVelocityY) > 0.04 && Math.abs(wristVelocityY) > Math.abs(wristVelocityX)) {
-                                triggeredGesture = wristVelocityY < 0 ? "SCROLL_UP" : "SCROLL_DOWN";
-                            } else if (Math.abs(wristVelocityX) > 0.04 && Math.abs(wristVelocityX) > Math.abs(wristVelocityY)) {
-                                triggeredGesture = wristVelocityX > 0 ? "SWIPE_LEFT" : "SWIPE_RIGHT";
-                            }
-                        } 
+                        if (openHand && Math.abs(wristVelocityY) > 0.04) triggeredGesture = wristVelocityY < 0 ? "SCROLL_UP" : "SCROLL_DOWN";
                         else if (peaceSign) triggeredGesture = "RIGHT_CLICK";
                         else if (threeFingers && !openHand) triggeredGesture = "SCREENSHOT";
                         else if (avgTipToThumbDist < 0.04 && !openHand) triggeredGesture = "PINCH_5";
-                        else if (thumbsUp) triggeredGesture = "THUMBS_UP";
+                        else if (thumbUp) triggeredGesture = "THUMBS_UP";
+                        else if (thumbLeft) triggeredGesture = "SWIPE_LEFT";
+                        else if (thumbRight) triggeredGesture = "SWIPE_RIGHT";
 
                         if (triggeredGesture && socket.readyState === WebSocket.OPEN) {
                             socket.send(`GEST:${triggeredGesture}`);
@@ -212,8 +188,9 @@
                             gestureCooldown = 40; 
                         }
                     }
-                    prevWristX = wrist.x; prevWristY = wrist.y;
+                    prevWristY = wrist.y;
 
+                    // Predictive Tracking & Dwell Logic
                     const rawX = 1 - tip.x, rawY = tip.y;
                     const sens = sensSlider.value / 10; 
                     const targetX = Math.max(0.02, Math.min(0.98, (rawX - 0.5) * sens + 0.5));
@@ -223,19 +200,9 @@
                     let predictedX = Math.max(0.02, Math.min(0.98, targetX + (velX * PREDICTION_FACTOR)));
                     let predictedY = Math.max(0.02, Math.min(0.98, targetY + (velY * PREDICTION_FACTOR)));
 
-                    // --- TRACKING & DWELL BEHAVIOR ---
                     const drift = Math.hypot(predictedX - dwellAnchorX, predictedY - dwellAnchorY);
 
-                    if (isDragging) {
-                        // Free fluid movement while dragging (bypasses magnetic lock)
-                        const distanceMoved = Math.hypot(velX, velY);
-                        let dynamicLerp = distanceMoved < 0.002 ? 0.0 : (distanceMoved > 0.05 ? 0.7 : 0.35);
-                        smoothX += (predictedX - smoothX) * dynamicLerp;
-                        smoothY += (predictedY - smoothY) * dynamicLerp;
-                        isCursorLocked = false;
-                        hoverFrames = 0; // Disable dwell clicking while dragging
-                    } 
-                    else if (isCursorLocked) {
+                    if (isCursorLocked) {
                         smoothX = dwellAnchorX;
                         smoothY = dwellAnchorY;
                         hoverFrames++;
@@ -270,7 +237,8 @@
                     
                     prevTargetX = targetX; prevTargetY = targetY;
 
-                    if (isCursorLocked && !isDragging) {
+                    // Dwell Click Firing
+                    if (isCursorLocked) {
                         if (hoverFrames === HOVER_SINGLE) {
                             if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:CLICK`);
                             sendCommandAlert("SINGLE CLICK");
