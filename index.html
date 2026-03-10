@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AeroOS | Magnetic Core V6.2</title>
+    <title>AeroOS | Rapid Actuation V6.3</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         :root {
@@ -76,16 +76,16 @@
         let prevTargetX = 0.5, prevTargetY = 0.5;
         const PREDICTION_FACTOR = 1.2; 
 
-        // --- THE NEW MAGNETIC LOCK VARIABLES ---
+        // --- SPEED BOOSTED DWELL TIMERS ---
         let hoverFrames = 0;
-        const HOVER_SINGLE = 30; // 1 second
-        const HOVER_DOUBLE = 45; // 1.5 seconds
+        const HOVER_SINGLE = 12; // ~0.4 seconds (Extremely fast)
+        const HOVER_DOUBLE = 20; // ~0.6 seconds (Blink and you miss it)
         let dwellAnchorX = 0.5, dwellAnchorY = 0.5;
         let isCursorLocked = false;
         
-        // These thresholds define the "sticky" feeling
-        const LOCK_TOLERANCE = 0.015;  // How still you must be to start the lock
-        const BREAKAWAY_FORCE = 0.05;  // How hard you must swipe to break the lock
+        // Tweaked tolerances for higher speed
+        const LOCK_TOLERANCE = 0.02;  // Slightly looser so it locks faster
+        const BREAKAWAY_FORCE = 0.06; // Slightly harder to break so you don't slip out during the fast double click
 
         let prevWristX = 0, prevWristY = 0;
         let gestureCooldown = 0;
@@ -166,7 +166,6 @@
                     }
                     prevWristX = wrist.x; prevWristY = wrist.y;
 
-                    // --- PREDICTIVE MATH ---
                     const rawX = 1 - tip.x, rawY = tip.y;
                     const sens = sensSlider.value / 10; 
                     const targetX = Math.max(0.02, Math.min(0.98, (rawX - 0.5) * sens + 0.5));
@@ -176,17 +175,13 @@
                     let predictedX = Math.max(0.02, Math.min(0.98, targetX + (velX * PREDICTION_FACTOR)));
                     let predictedY = Math.max(0.02, Math.min(0.98, targetY + (velY * PREDICTION_FACTOR)));
 
-                    // --- THE MAGNETIC LOCK ENGINE ---
-                    // Measure how far you've moved from the anchor
                     const drift = Math.hypot(predictedX - dwellAnchorX, predictedY - dwellAnchorY);
 
                     if (isCursorLocked) {
-                        // FORCE the cursor to stay perfectly still
                         smoothX = dwellAnchorX;
                         smoothY = dwellAnchorY;
                         hoverFrames++;
 
-                        // Check if you swiped hard enough to break the lock
                         if (drift > BREAKAWAY_FORCE) {
                             isCursorLocked = false;
                             hoverFrames = 0;
@@ -195,16 +190,14 @@
                             airCursor.style.borderColor = "var(--accent)";
                         }
                     } else {
-                        // Update smoothing normally if not locked
                         const distanceMoved = Math.hypot(velX, velY);
                         let dynamicLerp = distanceMoved < 0.002 ? 0.0 : (distanceMoved > 0.05 ? 0.7 : 0.35);
                         smoothX += (predictedX - smoothX) * dynamicLerp;
                         smoothY += (predictedY - smoothY) * dynamicLerp;
                         
-                        // Check if you are hovering still enough to START the lock
                         if (drift < LOCK_TOLERANCE) {
                             hoverFrames++;
-                            if (hoverFrames > 6) { // After ~200ms of hovering, engage the lock
+                            if (hoverFrames > 3) { // Almost instantly lock when still (reduced from 6)
                                 isCursorLocked = true;
                                 dwellAnchorX = smoothX;
                                 dwellAnchorY = smoothY;
@@ -220,7 +213,6 @@
                     
                     prevTargetX = targetX; prevTargetY = targetY;
 
-                    // --- CLICK FIRING LOGIC ---
                     if (isCursorLocked) {
                         if (hoverFrames === HOVER_SINGLE) {
                             if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:CLICK`);
@@ -233,7 +225,6 @@
                             trackingPad.classList.replace("clicking", "double-clicking");
                             airCursor.style.borderColor = "#fff";
                             
-                            // Immediately break lock after double click so it doesn't fire again
                             isCursorLocked = false; 
                             hoverFrames = 0;
                         } 
