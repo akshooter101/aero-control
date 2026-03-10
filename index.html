@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AeroOS | Gesture Core V6.1</title>
+    <title>AeroOS | Magnetic Core V6.2</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         :root {
@@ -76,28 +76,31 @@
         let prevTargetX = 0.5, prevTargetY = 0.5;
         const PREDICTION_FACTOR = 1.2; 
 
-        // --- NEW DWELL TIMERS (30fps baseline) ---
+        // --- THE NEW MAGNETIC LOCK VARIABLES ---
         let hoverFrames = 0;
         const HOVER_SINGLE = 30; // 1 second
         const HOVER_DOUBLE = 45; // 1.5 seconds
         let dwellAnchorX = 0.5, dwellAnchorY = 0.5;
+        let isCursorLocked = false;
+        
+        // These thresholds define the "sticky" feeling
+        const LOCK_TOLERANCE = 0.015;  // How still you must be to start the lock
+        const BREAKAWAY_FORCE = 0.05;  // How hard you must swipe to break the lock
 
-        // --- GESTURE & UI VARIABLES ---
         let prevWristX = 0, prevWristY = 0;
         let gestureCooldown = 0;
-        let statusTimer = 0; // Fixes the invisible status bug
+        let statusTimer = 0; 
 
         sensSlider.oninput = () => { sensReadout.innerText = (sensSlider.value / 10).toFixed(1) + "x"; };
 
         let isActive = true;
         sysToggle.onclick = () => { isActive = !isActive; sysToggle.innerText = isActive ? "System Active" : "System Offline"; sysToggle.classList.toggle("active", isActive); };
 
-        // --- UI ALERT SYSTEM ---
         function sendCommandAlert(msg) {
             statusTerminal.innerText = `[ CMD: ${msg} ]`;
             statusTerminal.style.background = "rgba(56, 189, 248, 0.3)";
             statusTerminal.style.color = "#fff";
-            statusTimer = 60; // Keep on screen for ~2 seconds
+            statusTimer = 60; 
         }
 
         const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
@@ -115,7 +118,6 @@
             if (isActive && video.readyState >= 2) {
                 const results = await handLandmarker.detectForVideo(video, performance.now());
                 
-                // Process UI Timer
                 if (statusTimer > 0) {
                     statusTimer--;
                     if (statusTimer === 0) {
@@ -144,12 +146,10 @@
                         const wristVelocityX = wrist.x - prevWristX;
                         const wristVelocityY = wrist.y - prevWristY;
                         
-                        // 4-Way Open Hand Swipes
                         if (openHand) {
                             if (Math.abs(wristVelocityY) > 0.04 && Math.abs(wristVelocityY) > Math.abs(wristVelocityX)) {
                                 triggeredGesture = wristVelocityY < 0 ? "SCROLL_UP" : "SCROLL_DOWN";
                             } else if (Math.abs(wristVelocityX) > 0.04 && Math.abs(wristVelocityX) > Math.abs(wristVelocityY)) {
-                                // Flipped for front-facing camera mirror
                                 triggeredGesture = wristVelocityX > 0 ? "SWIPE_LEFT" : "SWIPE_RIGHT";
                             }
                         } 
@@ -166,6 +166,7 @@
                     }
                     prevWristX = wrist.x; prevWristY = wrist.y;
 
+                    // --- PREDICTIVE MATH ---
                     const rawX = 1 - tip.x, rawY = tip.y;
                     const sens = sensSlider.value / 10; 
                     const targetX = Math.max(0.02, Math.min(0.98, (rawX - 0.5) * sens + 0.5));
@@ -175,18 +176,52 @@
                     let predictedX = Math.max(0.02, Math.min(0.98, targetX + (velX * PREDICTION_FACTOR)));
                     let predictedY = Math.max(0.02, Math.min(0.98, targetY + (velY * PREDICTION_FACTOR)));
 
-                    const distanceMoved = Math.hypot(velX, velY);
-                    let dynamicLerp = distanceMoved < 0.002 ? 0.0 : (distanceMoved > 0.05 ? 0.7 : 0.35);
+                    // --- THE MAGNETIC LOCK ENGINE ---
+                    // Measure how far you've moved from the anchor
+                    const drift = Math.hypot(predictedX - dwellAnchorX, predictedY - dwellAnchorY);
 
-                    smoothX += (predictedX - smoothX) * dynamicLerp;
-                    smoothY += (predictedY - smoothY) * dynamicLerp;
+                    if (isCursorLocked) {
+                        // FORCE the cursor to stay perfectly still
+                        smoothX = dwellAnchorX;
+                        smoothY = dwellAnchorY;
+                        hoverFrames++;
+
+                        // Check if you swiped hard enough to break the lock
+                        if (drift > BREAKAWAY_FORCE) {
+                            isCursorLocked = false;
+                            hoverFrames = 0;
+                            trackingPad.classList.remove("clicking", "double-clicking");
+                            airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
+                            airCursor.style.borderColor = "var(--accent)";
+                        }
+                    } else {
+                        // Update smoothing normally if not locked
+                        const distanceMoved = Math.hypot(velX, velY);
+                        let dynamicLerp = distanceMoved < 0.002 ? 0.0 : (distanceMoved > 0.05 ? 0.7 : 0.35);
+                        smoothX += (predictedX - smoothX) * dynamicLerp;
+                        smoothY += (predictedY - smoothY) * dynamicLerp;
+                        
+                        // Check if you are hovering still enough to START the lock
+                        if (drift < LOCK_TOLERANCE) {
+                            hoverFrames++;
+                            if (hoverFrames > 6) { // After ~200ms of hovering, engage the lock
+                                isCursorLocked = true;
+                                dwellAnchorX = smoothX;
+                                dwellAnchorY = smoothY;
+                            }
+                        } else {
+                            hoverFrames = 0;
+                            dwellAnchorX = smoothX;
+                            dwellAnchorY = smoothY;
+                            airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
+                            airCursor.style.borderColor = "var(--accent)";
+                        }
+                    }
+                    
                     prevTargetX = targetX; prevTargetY = targetY;
 
-                    // --- ENHANCED DWELL CLICK ENGINE ---
-                    const drift = Math.hypot(smoothX - dwellAnchorX, smoothY - dwellAnchorY);
-                    if (drift < 0.015) { 
-                        hoverFrames++;
-                        
+                    // --- CLICK FIRING LOGIC ---
+                    if (isCursorLocked) {
                         if (hoverFrames === HOVER_SINGLE) {
                             if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:CLICK`);
                             sendCommandAlert("SINGLE CLICK");
@@ -197,6 +232,10 @@
                             sendCommandAlert("DOUBLE CLICK");
                             trackingPad.classList.replace("clicking", "double-clicking");
                             airCursor.style.borderColor = "#fff";
+                            
+                            // Immediately break lock after double click so it doesn't fire again
+                            isCursorLocked = false; 
+                            hoverFrames = 0;
                         } 
                         else if (hoverFrames < HOVER_SINGLE) {
                             const scale = 1 - (hoverFrames / HOVER_SINGLE) * 0.5;
@@ -206,12 +245,6 @@
                             const scale = 0.5 - ((hoverFrames - HOVER_SINGLE) / (HOVER_DOUBLE - HOVER_SINGLE)) * 0.3;
                             airCursor.style.transform = `translate(-50%, -50%) scale(${scale})`;
                         }
-                    } else {
-                        hoverFrames = 0;
-                        dwellAnchorX = smoothX; dwellAnchorY = smoothY;
-                        airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
-                        airCursor.style.borderColor = "var(--accent)";
-                        trackingPad.classList.remove("clicking", "double-clicking");
                     }
 
                     airCursor.style.left = `${smoothX * 100}%`;
