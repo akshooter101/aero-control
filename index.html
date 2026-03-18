@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AeroOS | Navigation Core V6.6</title>
+    <title>AeroOS | Anti-Stacking V6.7</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         :root {
@@ -71,10 +71,10 @@
 
     <video id="webcam" autoplay playsinline></video>
 
-            <script type="module">
+    <script type="module">
         import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
 
-        const NGROK_URL = "vigorously-heterochthonous-mitch.ngrok-free.dev";
+        const NGROK_URL = "premorbidly-stomatous-gino.ngrok-free.dev";
         const socket = new WebSocket(`wss://${NGROK_URL}`);
 
         const airCursor = document.getElementById("airCursor");
@@ -90,9 +90,11 @@
         let prevTargetX = 0.5, prevTargetY = 0.5;
         const PREDICTION_FACTOR = 1.2; 
 
+        // --- SIGNIFICANTLY SLOWER TIMERS ---
         let hoverFrames = 0;
-        const HOVER_SINGLE = 12; 
-        const HOVER_DOUBLE = 24; 
+        const HOVER_SINGLE = 30; // 1.0 full second for Single Click
+        const HOVER_DOUBLE = 45; // 1.5 seconds for Double Click
+        
         let dwellAnchorX = 0.5, dwellAnchorY = 0.5;
         let isCursorLocked = false;
         
@@ -100,9 +102,12 @@
         const BREAKAWAY_FORCE = 0.06; 
 
         let prevWristY = 0;
-        let gestureCooldown = 0;
+        
+        // --- THE NEW GLOBAL COOLDOWN SYSTEM ---
+        let gestureCooldown = 0; 
+        
         let statusTimer = 0; 
-        let handLandmarker = null; // Declare globally
+        let handLandmarker = null;
 
         sensSlider.oninput = () => { sensReadout.innerText = (sensSlider.value / 10).toFixed(1) + "x"; };
 
@@ -127,32 +132,22 @@
 
         function isFingerUp(landmarks, tipObj, dipObj) { return landmarks[tipObj].y < landmarks[dipObj].y; }
 
-        // --- SAFARI FIX: Wrapped initialization in an async boot function ---
         async function bootSystem() {
             try {
                 sendCommandAlert("BOOTING NPU...");
-                
                 const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
                 handLandmarker = await HandLandmarker.createFromOptions(vision, {
-                    baseOptions: { 
-                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`, 
-                        delegate: "CPU" // SAFARI FIX: Dropped to CPU to prevent Apple WebGL crashes
-                    },
+                    baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`, delegate: "CPU" },
                     runningMode: "VIDEO", numHands: 1
                 });
 
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
                 video.srcObject = stream;
-                
-                // SAFARI FIX: Explicitly force the video to play
                 await video.play(); 
-                
                 sendCommandAlert("TRACKING ACTIVE");
                 renderLoop();
-
             } catch (err) {
                 sendCommandAlert("CAMERA BLOCKED");
-                console.error("Boot Error:", err);
             }
         }
 
@@ -173,21 +168,47 @@
                     const lm = results.landmarks[0];
                     const tip = lm[8], wrist = lm[0];
 
-                    if (gestureCooldown > 0) gestureCooldown--;
+                    const rawX = 1 - tip.x, rawY = tip.y;
+                    const sens = sensSlider.value / 10; 
+                    const targetX = Math.max(0.02, Math.min(0.98, (rawX - 0.5) * sens + 0.5));
+                    const targetY = Math.max(0.02, Math.min(0.98, (rawY - 0.5) * sens + 0.5));
 
-                    const indexUp = isFingerUp(lm, 8, 6), middleUp = isFingerUp(lm, 12, 10), ringUp = isFingerUp(lm, 16, 14), pinkyUp = isFingerUp(lm, 20, 18);
-                    const openHand = indexUp && middleUp && ringUp && pinkyUp;
-                    const threeFingers = indexUp && middleUp && ringUp && !pinkyUp;
-                    const peaceSign = indexUp && middleUp && !ringUp && !pinkyUp && !isFingerUp(lm, 4, 3);
-                    const fingersFolded = !indexUp && !middleUp && !ringUp && !pinkyUp;
-                    
-                    const thumbUp = fingersFolded && (lm[4].y < lm[9].y - 0.05);
-                    const thumbLeft = fingersFolded && (lm[4].x > lm[9].x + 0.05) && Math.abs(lm[4].y - lm[9].y) < 0.1; 
-                    const thumbRight = fingersFolded && (lm[4].x < lm[9].x - 0.05) && Math.abs(lm[4].y - lm[9].y) < 0.1; 
+                    const velX = targetX - prevTargetX, velY = targetY - prevTargetY;
+                    let predictedX = Math.max(0.02, Math.min(0.98, targetX + (velX * PREDICTION_FACTOR)));
+                    let predictedY = Math.max(0.02, Math.min(0.98, targetY + (velY * PREDICTION_FACTOR)));
 
-                    const avgTipToThumbDist = (Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y) + Math.hypot(lm[12].x - lm[4].x, lm[12].y - lm[4].y) + Math.hypot(lm[16].x - lm[4].x, lm[16].y - lm[4].y)) / 3;
+                    // --- GLOBAL COOLDOWN ENGINE ---
+                    if (gestureCooldown > 0) {
+                        gestureCooldown--;
+                        
+                        // Force normal fluid movement, skip all locking and gestures
+                        const distanceMoved = Math.hypot(velX, velY);
+                        let dynamicLerp = distanceMoved < 0.002 ? 0.0 : (distanceMoved > 0.05 ? 0.7 : 0.35);
+                        smoothX += (predictedX - smoothX) * dynamicLerp;
+                        smoothY += (predictedY - smoothY) * dynamicLerp;
+                        
+                        // Clear locks
+                        isCursorLocked = false;
+                        hoverFrames = 0;
+                        dwellAnchorX = smoothX;
+                        dwellAnchorY = smoothY;
+                        airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
+                        trackingPad.classList.remove("clicking", "double-clicking");
+                        airCursor.style.borderColor = "var(--accent)";
+                    } 
+                    else {
+                        // --- 1. HAND SIGN DETECTIONS (Only if no cooldown) ---
+                        const indexUp = isFingerUp(lm, 8, 6), middleUp = isFingerUp(lm, 12, 10), ringUp = isFingerUp(lm, 16, 14), pinkyUp = isFingerUp(lm, 20, 18);
+                        const openHand = indexUp && middleUp && ringUp && pinkyUp;
+                        const threeFingers = indexUp && middleUp && ringUp && !pinkyUp;
+                        const peaceSign = indexUp && middleUp && !ringUp && !pinkyUp && !isFingerUp(lm, 4, 3);
+                        const fingersFolded = !indexUp && !middleUp && !ringUp && !pinkyUp;
+                        
+                        const thumbUp = fingersFolded && (lm[4].y < lm[9].y - 0.05);
+                        const thumbLeft = fingersFolded && (lm[4].x > lm[9].x + 0.05) && Math.abs(lm[4].y - lm[9].y) < 0.1; 
+                        const thumbRight = fingersFolded && (lm[4].x < lm[9].x - 0.05) && Math.abs(lm[4].y - lm[9].y) < 0.1; 
+                        const avgTipToThumbDist = (Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y) + Math.hypot(lm[12].x - lm[4].x, lm[12].y - lm[4].y) + Math.hypot(lm[16].x - lm[4].x, lm[16].y - lm[4].y)) / 3;
 
-                    if (gestureCooldown === 0) {
                         let triggeredGesture = null;
                         const wristVelocityY = wrist.y - prevWristY;
                         
@@ -202,81 +223,77 @@
                         if (triggeredGesture && socket.readyState === WebSocket.OPEN) {
                             socket.send(`GEST:${triggeredGesture}`);
                             sendCommandAlert(triggeredGesture);
-                            gestureCooldown = 40; 
+                            gestureCooldown = 60; // 2.0 Second Global Gap after a hand gesture
                         }
-                    }
-                    prevWristY = wrist.y;
 
-                    const rawX = 1 - tip.x, rawY = tip.y;
-                    const sens = sensSlider.value / 10; 
-                    const targetX = Math.max(0.02, Math.min(0.98, (rawX - 0.5) * sens + 0.5));
-                    const targetY = Math.max(0.02, Math.min(0.98, (rawY - 0.5) * sens + 0.5));
+                        // --- 2. DWELL LOCK & TRACKING ---
+                        const drift = Math.hypot(predictedX - dwellAnchorX, predictedY - dwellAnchorY);
 
-                    const velX = targetX - prevTargetX, velY = targetY - prevTargetY;
-                    let predictedX = Math.max(0.02, Math.min(0.98, targetX + (velX * PREDICTION_FACTOR)));
-                    let predictedY = Math.max(0.02, Math.min(0.98, targetY + (velY * PREDICTION_FACTOR)));
-
-                    const drift = Math.hypot(predictedX - dwellAnchorX, predictedY - dwellAnchorY);
-
-                    if (isCursorLocked) {
-                        smoothX = dwellAnchorX;
-                        smoothY = dwellAnchorY;
-                        hoverFrames++;
-
-                        if (drift > BREAKAWAY_FORCE) {
-                            isCursorLocked = false;
-                            hoverFrames = 0;
-                            trackingPad.classList.remove("clicking", "double-clicking");
-                            airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
-                            airCursor.style.borderColor = "var(--accent)";
-                        }
-                    } else {
-                        const distanceMoved = Math.hypot(velX, velY);
-                        let dynamicLerp = distanceMoved < 0.002 ? 0.0 : (distanceMoved > 0.05 ? 0.7 : 0.35);
-                        smoothX += (predictedX - smoothX) * dynamicLerp;
-                        smoothY += (predictedY - smoothY) * dynamicLerp;
-                        
-                        if (drift < LOCK_TOLERANCE) {
+                        if (isCursorLocked) {
+                            smoothX = dwellAnchorX;
+                            smoothY = dwellAnchorY;
                             hoverFrames++;
-                            if (hoverFrames > 3) { 
-                                isCursorLocked = true;
-                                dwellAnchorX = smoothX;
-                                dwellAnchorY = smoothY;
+
+                            if (drift > BREAKAWAY_FORCE) {
+                                isCursorLocked = false;
+                                hoverFrames = 0;
+                                trackingPad.classList.remove("clicking", "double-clicking");
+                                airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
+                                airCursor.style.borderColor = "var(--accent)";
+                                gestureCooldown = 30; // 1.0 Second gap after breaking a lock
                             }
                         } else {
-                            hoverFrames = 0;
-                            dwellAnchorX = smoothX;
-                            dwellAnchorY = smoothY;
-                            airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
+                            const distanceMoved = Math.hypot(velX, velY);
+                            let dynamicLerp = distanceMoved < 0.002 ? 0.0 : (distanceMoved > 0.05 ? 0.7 : 0.35);
+                            smoothX += (predictedX - smoothX) * dynamicLerp;
+                            smoothY += (predictedY - smoothY) * dynamicLerp;
+                            
+                            if (drift < LOCK_TOLERANCE) {
+                                hoverFrames++;
+                                if (hoverFrames > 5) { 
+                                    isCursorLocked = true;
+                                    dwellAnchorX = smoothX;
+                                    dwellAnchorY = smoothY;
+                                }
+                            } else {
+                                hoverFrames = 0;
+                                dwellAnchorX = smoothX;
+                                dwellAnchorY = smoothY;
+                                airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
+                            }
                         }
-                    }
+                        
+                        // --- 3. CLICK FIRING ---
+                        if (isCursorLocked) {
+                            if (hoverFrames === HOVER_SINGLE) {
+                                if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:CLICK`);
+                                sendCommandAlert("SINGLE CLICK");
+                                trackingPad.classList.add("clicking");
+                                // We don't gap here yet, because they might be waiting for double click
+                            } 
+                            else if (hoverFrames === HOVER_DOUBLE) {
+                                if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:DOUBLE_CLICK`);
+                                sendCommandAlert("DOUBLE CLICK");
+                                trackingPad.classList.replace("clicking", "double-clicking");
+                                airCursor.style.borderColor = "#fff";
+                                
+                                isCursorLocked = false; 
+                                hoverFrames = 0;
+                                gestureCooldown = 50; // 1.6 Second gap after a double click
+                            } 
+                            else if (hoverFrames < HOVER_SINGLE) {
+                                const scale = 1 - (hoverFrames / HOVER_SINGLE) * 0.5;
+                                airCursor.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                            } 
+                            else if (hoverFrames < HOVER_DOUBLE) {
+                                const scale = 0.5 - ((hoverFrames - HOVER_SINGLE) / (HOVER_DOUBLE - HOVER_SINGLE)) * 0.3;
+                                airCursor.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                            }
+                        }
+                    } // End of Global Cooldown Block
                     
                     prevTargetX = targetX; prevTargetY = targetY;
-
-                    if (isCursorLocked) {
-                        if (hoverFrames === HOVER_SINGLE) {
-                            if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:CLICK`);
-                            sendCommandAlert("SINGLE CLICK");
-                            trackingPad.classList.add("clicking");
-                        } 
-                        else if (hoverFrames === HOVER_DOUBLE) {
-                            if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:DOUBLE_CLICK`);
-                            sendCommandAlert("DOUBLE CLICK");
-                            trackingPad.classList.replace("clicking", "double-clicking");
-                            airCursor.style.borderColor = "#fff";
-                            
-                            isCursorLocked = false; 
-                            hoverFrames = 0;
-                        } 
-                        else if (hoverFrames < HOVER_SINGLE) {
-                            const scale = 1 - (hoverFrames / HOVER_SINGLE) * 0.5;
-                            airCursor.style.transform = `translate(-50%, -50%) scale(${scale})`;
-                        } 
-                        else if (hoverFrames < HOVER_DOUBLE) {
-                            const scale = 0.5 - ((hoverFrames - HOVER_SINGLE) / (HOVER_DOUBLE - HOVER_SINGLE)) * 0.3;
-                            airCursor.style.transform = `translate(-50%, -50%) scale(${scale})`;
-                        }
-                    }
+                    prevWristY = wrist.y;
 
                     airCursor.style.left = `${smoothX * 100}%`;
                     airCursor.style.top = `${smoothY * 100}%`;
@@ -289,7 +306,6 @@
             requestAnimationFrame(renderLoop);
         }
         
-        // Start the system
         bootSystem();
     </script>
 </body>
