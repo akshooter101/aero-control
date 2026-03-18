@@ -141,7 +141,15 @@
                     runningMode: "VIDEO", numHands: 1
                 });
 
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+    video: { 
+        facingMode: "user",
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        frameRate: { ideal: 60, max: 120 } 
+    } 
+});
+
                 video.srcObject = stream;
                 await video.play(); 
                 sendCommandAlert("TRACKING ACTIVE");
