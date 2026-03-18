@@ -71,7 +71,7 @@
 
     <video id="webcam" autoplay playsinline></video>
 
-    <script type="module">
+            <script type="module">
         import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
 
         const NGROK_URL = "premorbidly-stomatous-gino.ngrok-free.dev";
@@ -90,7 +90,6 @@
         let prevTargetX = 0.5, prevTargetY = 0.5;
         const PREDICTION_FACTOR = 1.2; 
 
-        // Timers & States (0.4s Single Click, 0.8s Double Click)
         let hoverFrames = 0;
         const HOVER_SINGLE = 12; 
         const HOVER_DOUBLE = 24; 
@@ -103,6 +102,7 @@
         let prevWristY = 0;
         let gestureCooldown = 0;
         let statusTimer = 0; 
+        let handLandmarker = null; // Declare globally
 
         sensSlider.oninput = () => { sensReadout.innerText = (sensSlider.value / 10).toFixed(1) + "x"; };
 
@@ -125,19 +125,39 @@
             statusTimer = 60; 
         }
 
-        const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
-        const handLandmarker = await HandLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`, delegate: "GPU" },
-            runningMode: "VIDEO", numHands: 1
-        });
-
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-        video.srcObject = stream;
-
         function isFingerUp(landmarks, tipObj, dipObj) { return landmarks[tipObj].y < landmarks[dipObj].y; }
 
+        // --- SAFARI FIX: Wrapped initialization in an async boot function ---
+        async function bootSystem() {
+            try {
+                sendCommandAlert("BOOTING NPU...");
+                
+                const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
+                handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: { 
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`, 
+                        delegate: "CPU" // SAFARI FIX: Dropped to CPU to prevent Apple WebGL crashes
+                    },
+                    runningMode: "VIDEO", numHands: 1
+                });
+
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+                video.srcObject = stream;
+                
+                // SAFARI FIX: Explicitly force the video to play
+                await video.play(); 
+                
+                sendCommandAlert("TRACKING ACTIVE");
+                renderLoop();
+
+            } catch (err) {
+                sendCommandAlert("CAMERA BLOCKED");
+                console.error("Boot Error:", err);
+            }
+        }
+
         async function renderLoop() {
-            if (isActive && video.readyState >= 2) {
+            if (isActive && video.readyState >= 2 && handLandmarker) {
                 const results = await handLandmarker.detectForVideo(video, performance.now());
                 
                 if (statusTimer > 0) {
@@ -155,21 +175,18 @@
 
                     if (gestureCooldown > 0) gestureCooldown--;
 
-                    // Logic States
                     const indexUp = isFingerUp(lm, 8, 6), middleUp = isFingerUp(lm, 12, 10), ringUp = isFingerUp(lm, 16, 14), pinkyUp = isFingerUp(lm, 20, 18);
                     const openHand = indexUp && middleUp && ringUp && pinkyUp;
                     const threeFingers = indexUp && middleUp && ringUp && !pinkyUp;
                     const peaceSign = indexUp && middleUp && !ringUp && !pinkyUp && !isFingerUp(lm, 4, 3);
                     const fingersFolded = !indexUp && !middleUp && !ringUp && !pinkyUp;
                     
-                    // Thumb Logic (Using Middle Knuckle as Center Reference)
                     const thumbUp = fingersFolded && (lm[4].y < lm[9].y - 0.05);
                     const thumbLeft = fingersFolded && (lm[4].x > lm[9].x + 0.05) && Math.abs(lm[4].y - lm[9].y) < 0.1; 
                     const thumbRight = fingersFolded && (lm[4].x < lm[9].x - 0.05) && Math.abs(lm[4].y - lm[9].y) < 0.1; 
 
                     const avgTipToThumbDist = (Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y) + Math.hypot(lm[12].x - lm[4].x, lm[12].y - lm[4].y) + Math.hypot(lm[16].x - lm[4].x, lm[16].y - lm[4].y)) / 3;
 
-                    // Gestures Firing
                     if (gestureCooldown === 0) {
                         let triggeredGesture = null;
                         const wristVelocityY = wrist.y - prevWristY;
@@ -190,7 +207,6 @@
                     }
                     prevWristY = wrist.y;
 
-                    // Predictive Tracking & Dwell Logic
                     const rawX = 1 - tip.x, rawY = tip.y;
                     const sens = sensSlider.value / 10; 
                     const targetX = Math.max(0.02, Math.min(0.98, (rawX - 0.5) * sens + 0.5));
@@ -237,7 +253,6 @@
                     
                     prevTargetX = targetX; prevTargetY = targetY;
 
-                    // Dwell Click Firing
                     if (isCursorLocked) {
                         if (hoverFrames === HOVER_SINGLE) {
                             if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:CLICK`);
@@ -273,7 +288,9 @@
             }
             requestAnimationFrame(renderLoop);
         }
-        video.onloadeddata = renderLoop;
+        
+        // Start the system
+        bootSystem();
     </script>
 </body>
 </html>
