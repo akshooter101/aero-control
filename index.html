@@ -316,20 +316,20 @@ body::after {
 #padHint.gone { opacity: 0; transition: opacity 0.4s; }
 
 #clickButtons {
-  height: 44px; flex-shrink: 0; display: flex;
+  height: 75px; flex-shrink: 0; display: flex;
   background: var(--btn-bg);
   box-shadow: inset 0 2px 6px rgba(0,0,0,0.4), inset 0 -1px 2px rgba(255,255,255,0.02);
 }
 .click-btn {
   flex: 1; border: none; background: transparent;
-  font-family: var(--font); font-size: 12px; font-weight: 700;
+  font-family: var(--font); font-size: 14px; font-weight: 700;
   letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted2);
   cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
   transition: background 0.12s, color 0.12s; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
 .click-btn:active, .click-btn.pressed { background: var(--cyan-dim); color: var(--cyan); }
 #rightBtn { border-left: 1px solid var(--border); }
-.click-btn svg { width: 11px; height: 11px; }
+.click-btn svg { width: 16px; height: 16px; }
 
 .ripple {
   position: absolute; width: 18px; height: 18px; border-radius: 50%;
@@ -390,7 +390,7 @@ input[type="range"]::-webkit-slider-thumb {
   box-shadow: 0 0 8px var(--cyan-glow); border: 2px solid var(--bg);
 }
 
-.btn-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.btn-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
 .action-btn {
   padding: 10px 8px; border-radius: var(--r-sm);
   border: 1px solid var(--border); background: var(--surface); color: var(--muted2);
@@ -520,6 +520,15 @@ video { display: none; }
         </svg>
         Screen Light
       </button>
+      <button class="action-btn" id="btnKeyboard" onclick="toggleKeyboard()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <rect x="2" y="6" width="20" height="13" rx="2"/>
+          <line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/>
+          <line x1="14" y1="10" x2="14" y2="10"/><line x1="18" y1="10" x2="18" y2="10"/>
+          <line x1="6" y1="14" x2="6" y2="14"/><line x1="10" y1="14" x2="18" y2="14"/>
+        </svg>
+        Keyboard
+      </button>
     </div>
   </div>
 
@@ -552,7 +561,7 @@ const fY = new OneEuroFilter(1.0, 0.6);
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const NGROK         = "vigorously-heterochthonous-mitch.ngrok-free.dev";
+const NGROK         = "vigorously-heterochthonous-mitch.ngrok-free.app";
 const EDGE          = 0.12;   // camera dead-zone remap
 const PINCH_THRESH  = 0.07;   // normalized dist for index/middle pinch
 const SCROLL_THRESH = 0.035;  // filtered delta to fire a scroll tick (wider deadzone = no jitter)
@@ -575,16 +584,21 @@ let cameras=[], camIdx=0;
 
 // Air gesture state
 let isPinched      = false;   // index pinch currently held (LEFT_DOWN)
+let pinchStartTime = 0;       // timestamp of pinch start (fix 3: timer)
+let isDragging     = false;   // true when long-pinch fired LEFT_DOWN (fix 3)
 let rightClickCd   = 0;       // cooldown frames for right click
 let scrollRefY     = null;    // filtered Y anchor for scroll mode
-let scrollRefX     = null;    // filtered X anchor for horizontal scroll (fix 4)
+let scrollRefX     = null;    // filtered X anchor for horizontal scroll
 let swipeRefY      = null;    // filtered Y anchor for 3-finger swipe
 let swipeFired     = false;   // prevent double-fire per swipe gesture
 let airLabelTimer  = null;
+let clutchCooldown = 0;       // post-clutch lockout frames (fix 4)
+let activeGesture  = 'none';  // gesture state machine lock (fix 7)
+let poseHoldFrames = 0;       // stability counter (fix 7)
 
 // Relative tracking anchors — always updated, even during clutch (fix 2)
-let lastHandX      = null;    // previous frame filtered X (smoothHandX)
-let lastHandY      = null;    // previous frame filtered Y (smoothHandY)
+let lastHandX      = null;
+let lastHandY      = null;
 
 // ═══════════════════════════════════════════════
 // DOM
@@ -675,11 +689,29 @@ window.toggleSystem = () => {
   alert2(isActive ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE');
 };
 
-window.toggleFlash = () => {
+window.toggleFlash = async () => {
   isFlash = !isFlash;
   document.getElementById('btnFlash').classList.toggle('on', isFlash);
-  document.body.classList.toggle('flash-mode', isFlash);
-  alert2(isFlash ? 'ILLUMINATION ON' : 'ILLUMINATION OFF');
+  // Try hardware LED torch first (back camera); fall back to screen-light
+  let usedTorch = false;
+  if (video.srcObject) {
+    try {
+      const track = video.srcObject.getVideoTracks()[0];
+      if (track && track.getCapabilities().torch) {
+        await track.applyConstraints({ advanced: [{ torch: isFlash }] });
+        usedTorch = true;
+      }
+    } catch(e) { /* torch unavailable — fall through */ }
+  }
+  if (!usedTorch) {
+    document.body.classList.toggle('flash-mode', isFlash);
+  }
+  alert2(isFlash ? (usedTorch ? 'TORCH ON' : 'ILLUMINATION ON') : (usedTorch ? 'TORCH OFF' : 'ILLUMINATION OFF'));
+};
+
+window.toggleKeyboard = () => {
+  wsSend('GEST:TOGGLE_KEYBOARD');
+  alert2('KEYBOARD TOGGLED');
 };
 
 // ═══════════════════════════════════════════════
@@ -747,91 +779,114 @@ function setMainState(state) {
 }
 
 // ═══════════════════════════════════════════════
-// aiLoop() — LM9 relative tracking, Vision-Pro-style clutch
-// Fixes: 2 (relative+clutch anchor), 3 (speed), 4 (H-scroll), 5 (filtered scroll)
+// aiLoop() — all QA fixes applied
 // ═══════════════════════════════════════════════
 function aiLoop(lm) {
 
-  // ── STEP A: Always filter LM9 first, every frame ──
-  // The 1€-filtered values are our "smoothHandX/Y" — used for BOTH
-  // relative movement AND scroll deltas, never raw camera data.
-  const rawX = remapEdge(1 - lm[9].x);
-  const rawY = remapEdge(lm[9].y);
-  const smoothHandX = fX.filter(rawX);  // filtered LM9 X in [0,1]
-  const smoothHandY = fY.filter(rawY);  // filtered LM9 Y in [0,1]
+  // ── A: Filter LM9 every frame (source of truth for movement + scroll deltas) ──
+  const rawX      = remapEdge(1 - lm[9].x);
+  const rawY      = remapEdge(lm[9].y);
+  const smoothHandX = fX.filter(rawX);
+  const smoothHandY = fY.filter(rawY);
 
-  // ── STEP B: Compute relative delta from previous filtered position ──
-  // On the very first frame, prime the anchors to avoid a jump.
+  // ── B: Relative delta (first frame primes the anchor) ──
   let dx = 0, dy = 0;
   if (lastHandX !== null) {
     dx = smoothHandX - lastHandX;
     dy = smoothHandY - lastHandY;
   }
 
-  // ── STEP C: FIST / CLUTCH (highest priority) ──
-  // CRITICAL: We update lastHandX/Y BEFORE returning so that when the
-  // hand opens, the next frame's delta is ~0 → cursor stays put exactly.
+  // ── C: FIST / CLUTCH — always update anchor BEFORE return ──
   const isFist =
     lm[8].y  > lm[5].y  &&
     lm[12].y > lm[9].y  &&
     lm[16].y > lm[13].y &&
     lm[20].y > lm[17].y;
 
-  // Always advance the anchor — clutch or not
-  lastHandX = smoothHandX;
+  lastHandX = smoothHandX;   // anchor advances regardless of clutch state
   lastHandY = smoothHandY;
 
   if (isFist) {
-    // Safety: release pinch if hand closes mid-drag
-    if (isPinched) { wsSend('GEST:LEFT_UP'); isPinched = false; }
-    // Reset scroll/swipe refs
+    // Release any active drag safely
+    if (isDragging) { wsSend('GEST:LEFT_UP'); isDragging = false; }
+    isPinched = false;
+    // Reset all gesture state
     scrollRefX = null; scrollRefY = null;
     swipeRefY  = null; swipeFired = false;
-    // Freeze cursor visually — do NOT update curX/curY
+    activeGesture = 'none'; poseHoldFrames = 0;
+    // Fix 4: arm the post-clutch cooldown
+    clutchCooldown = 15;
     setCursorState('clutch');
     setMainState('clutch');
     alert2('✊ CLUTCH · CURSOR FROZEN', 'state-clutch');
-    return; // ← cursor position untouched, anchor updated above ✓
+    return; // cursor position untouched ✓
   }
 
-  // ── STEP D: Apply relative delta to cursor with speed multiplier ──
-  // Fix 3: multiply by (sens * BASE_SPEED) so slider covers full screen range
+  // Fix 4: decrement post-clutch lockout each open-hand frame
+  if (clutchCooldown > 0) clutchCooldown--;
+
+  // ── D: Apply relative movement (cursor moves even during cooldown) ──
   const sens = (sensSlider.value / 10) * BASE_SPEED;
   curX = Math.max(0, Math.min(1, curX + dx * sens));
   curY = Math.max(0, Math.min(1, curY + dy * sens));
 
-  // ── STEP E: Finger state flags ──
+  // ── Render cursor position immediately (movement is never locked) ──
+  airCursor.style.left = `${curX*100}%`;
+  airCursor.style.top  = `${curY*100}%`;
+  airLabel.style.left  = `${curX*100}%`;
+  airLabel.style.top   = `${curY*100}%`;
+  sendPos(curX, curY);
+
+  // ── ALL GESTURE TRIGGERS ARE GATED BELOW ──
+  if (clutchCooldown > 0) return;  // Fix 4: block all gesture triggers post-clutch
+
+  // ── E: Finger state flags ──
   const iU = fingerUp(lm,8,6),  mU = fingerUp(lm,12,10);
   const rU = fingerUp(lm,16,14), pU = fingerUp(lm,20,18);
 
-  // ── STEP F: INDEX PINCH → LEFT_DOWN / LEFT_UP ──
+  // ── F: INDEX PINCH — pinch timer (Fix 3) ──
   const indexPinch = dist2d(lm[8], lm[4]) < PINCH_THRESH;
+
   if (indexPinch && !isPinched) {
-    isPinched = true;
-    wsSend('GEST:LEFT_DOWN');
-    showAirLabel('LEFT DOWN');
+    // Pinch just started — record time, don't fire anything yet
+    isPinched      = true;
+    pinchStartTime = Date.now();
+    isDragging     = false;
     setCursorState('down');
     setMainState('click');
-    alert2('☝ LEFT DOWN · HOLD = DRAG', 'state-down');
+  } else if (indexPinch && isPinched && !isDragging) {
+    // Pinch is being held — check if we've crossed the drag threshold
+    if (Date.now() - pinchStartTime >= 250) {
+      isDragging = true;
+      wsSend('GEST:LEFT_DOWN');
+      showAirLabel('DRAG');
+      alert2('☝ DRAG ACTIVE', 'state-down');
+    }
   } else if (!indexPinch && isPinched) {
+    // Pinch released
+    if (isDragging) {
+      // Long hold → was a drag, send LEFT_UP
+      wsSend('GEST:LEFT_UP');
+      showAirLabel('DROP');
+      alert2('AIR TRACK · LM9 ACTIVE');
+      isDragging = false;
+    } else {
+      // Fast tap (< 250ms) → send CLICK so Windows can chain double-clicks natively
+      wsSend('GEST:CLICK');
+      showAirLabel('CLICK');
+      setMainState('click');
+      setTimeout(() => setMainState(''), 180);
+      alert2('CLICK');
+    }
     isPinched = false;
-    wsSend('GEST:LEFT_UP');
-    showAirLabel('LEFT UP');
-    setCursorState(''); setMainState('');
-    alert2('AIR TRACK · LM9 ACTIVE');
+    setCursorState('');
+    if (!isDragging) setMainState('');
   }
 
-  // While pinching, skip all other gesture checks
-  if (isPinched) {
-    airCursor.style.left = `${curX*100}%`;
-    airCursor.style.top  = `${curY*100}%`;
-    airLabel.style.left  = `${curX*100}%`;
-    airLabel.style.top   = `${curY*100}%`;
-    sendPos(curX, curY, true);
-    return;
-  }
+  // While pinching, skip all other gestures
+  if (isPinched) return;
 
-  // ── STEP G: MIDDLE PINCH → RIGHT_CLICK ──
+  // ── G: MIDDLE PINCH → RIGHT_CLICK ──
   if (rightClickCd > 0) rightClickCd--;
   const middlePinch = dist2d(lm[12], lm[4]) < PINCH_THRESH;
   if (middlePinch && rightClickCd === 0) {
@@ -843,14 +898,28 @@ function aiLoop(lm) {
     rightClickCd = 40;
   }
 
-  // ── STEP H: SCROLL MODE — index+middle up, ring+pinky down ──
-  // Fix 4: axis-lock (compare |dy| vs |dx|, send whichever dominates)
-  // Fix 5: use smoothHandX/Y (filtered) — never raw lm[9]
-  const isScrollMode = iU && mU && !rU && !pU && !middlePinch;
-  if (isScrollMode) {
+  // ── H+I: SCROLL / THREE-FINGER — strict state machine (Fix 7) ──
+  const rawScroll = iU && mU && !rU && !pU && !middlePinch;
+  const rawThree  = iU && mU && rU && !pU;
+
+  if (rawScroll || rawThree) {
+    poseHoldFrames++;
+  } else {
+    // Pose broken — full reset
+    poseHoldFrames = 0;
+    activeGesture  = 'none';
+    scrollRefX = null; scrollRefY = null;
+    swipeRefY  = null; swipeFired = false;
+  }
+
+  // Lock into a gesture only after 5 stable frames (~80ms); never switch mid-gesture
+  if (poseHoldFrames > 4 && activeGesture === 'none') {
+    activeGesture = rawScroll ? 'scroll' : 'three';
+  }
+
+  if (activeGesture === 'scroll') {
     setCursorState('scroll');
     setMainState('scroll');
-    // Prime both axes together on entry
     if (scrollRefY === null) { scrollRefY = smoothHandY; scrollRefX = smoothHandX; }
 
     const sdY = smoothHandY - scrollRefY;
@@ -859,59 +928,40 @@ function aiLoop(lm) {
     if (Math.max(Math.abs(sdY), Math.abs(sdX)) > SCROLL_THRESH) {
       let g, label;
       if (Math.abs(sdY) >= Math.abs(sdX)) {
-        // Vertical dominates
-        g     = sdY < 0 ? 'GEST:SCROLL_UP'   : 'GEST:SCROLL_DOWN';
-        label = sdY < 0 ? '⬆ SCROLL UP'      : '⬇ SCROLL DOWN';
+        // Fix 2 — Natural scroll: hand moves UP (negative dy) → page scrolls UP → SCROLL_DOWN
+        g     = sdY < 0 ? 'GEST:SCROLL_DOWN'  : 'GEST:SCROLL_UP';
+        label = sdY < 0 ? '⬆ SCROLL UP'       : '⬇ SCROLL DOWN';
       } else {
-        // Horizontal dominates
-        g     = sdX < 0 ? 'GEST:SCROLL_LEFT'  : 'GEST:SCROLL_RIGHT';
-        label = sdX < 0 ? '◀ SCROLL LEFT'     : '▶ SCROLL RIGHT';
+        // Fix 2 — Natural scroll: hand moves LEFT (negative dx) → SCROLL_RIGHT
+        g     = sdX < 0 ? 'GEST:SCROLL_RIGHT'  : 'GEST:SCROLL_LEFT';
+        label = sdX < 0 ? '▶ SCROLL RIGHT'     : '◀ SCROLL LEFT';
       }
       wsSend(g);
       showAirLabel(label);
       statusText.textContent = label;
       statusBar.className = 'state-scroll';
-      // Reset both axes after each tick
       scrollRefY = smoothHandY;
       scrollRefX = smoothHandX;
     }
-  } else {
-    scrollRefY = null;
-    scrollRefX = null;
-  }
 
-  // ── STEP I: THREE-FINGER SWIPE — index+middle+ring up, pinky down ──
-  const isThreeMode = iU && mU && rU && !pU;
-  if (isThreeMode) {
+  } else if (activeGesture === 'three') {
     setCursorState('three');
     setMainState('three');
     if (swipeRefY === null) { swipeRefY = smoothHandY; swipeFired = false; }
     const sdY = smoothHandY - swipeRefY;
     if (!swipeFired && Math.abs(sdY) > SWIPE_THRESH) {
-      const g     = sdY < 0 ? 'GEST:TASK_VIEW'   : 'GEST:SHOW_DESKTOP';
-      const label = sdY < 0 ? '⬆ TASK VIEW'      : '⬇ SHOW DESKTOP';
+      const g     = sdY < 0 ? 'GEST:TASK_VIEW'  : 'GEST:SHOW_DESKTOP';
+      const label = sdY < 0 ? '⬆ TASK VIEW'     : '⬇ SHOW DESKTOP';
       wsSend(g);
       showAirLabel(label);
       alert2(label, 'state-three');
       swipeFired = true;
     }
-  } else {
-    swipeRefY  = null;
-    swipeFired = false;
-  }
-
-  // ── STEP J: DEFAULT HOVER ──
-  if (!isScrollMode && !isThreeMode && !middlePinch) {
+  } else if (!middlePinch) {
+    // Default hover — no active gesture
     setCursorState('');
     if (statusTimer === 0) setMainState('');
   }
-
-  // ── STEP K: RENDER ──
-  airCursor.style.left = `${curX*100}%`;
-  airCursor.style.top  = `${curY*100}%`;
-  airLabel.style.left  = `${curX*100}%`;
-  airLabel.style.top   = `${curY*100}%`;
-  sendPos(curX, curY);
 }
 
 // ═══════════════════════════════════════════════
@@ -984,11 +1034,13 @@ touchSurface.addEventListener('touchmove', e=>{
       const g=dd>0?'ZOOM_IN':'ZOOM_OUT'; wsSend(`GEST:${g}`);
       showBadge(dd>0?'🔍 ZOOM IN':'🔍 ZOOM OUT'); tpZoomThr=7; tpScrollRefY=midY; tpScrollRefX=midX;
     } else if (Math.abs(sdY)>6&&tpScrollThr===0&&Math.abs(dd)<5) {
-      const g=sdY<0?'SCROLL_UP':'SCROLL_DOWN'; wsSend(`GEST:${g}`);
+      // Fix 2: natural scroll — finger up = content up = SCROLL_DOWN payload
+      const g=sdY<0?'SCROLL_DOWN':'SCROLL_UP'; wsSend(`GEST:${g}`);
       showBadge(sdY<0?'⬆ SCROLL UP':'⬇ SCROLL DOWN'); tpScrollThr=4; tpScrollRefY=midY;
     } else if (Math.abs(sdX)>10&&tpScrollThr===0&&Math.abs(dd)<5) {
-      const g=sdX<0?'SCROLL_LEFT':'SCROLL_RIGHT'; wsSend(`GEST:${g}`);
-      showBadge(sdX<0?'◀ SCROLL LEFT':'▶ SCROLL RIGHT'); tpScrollThr=6; tpScrollRefX=midX;
+      // Fix 2: natural scroll — finger left = content left = SCROLL_RIGHT payload
+      const g=sdX<0?'SCROLL_RIGHT':'SCROLL_LEFT'; wsSend(`GEST:${g}`);
+      showBadge(sdX<0?'▶ SCROLL RIGHT':'◀ SCROLL LEFT'); tpScrollThr=6; tpScrollRefX=midX;
     }
     tpPinchDist=d;
   }
