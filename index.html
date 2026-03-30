@@ -166,14 +166,15 @@ body::after {
 #mainArea {
   width: 100%;
   aspect-ratio: 16 / 9;
-  max-height: 100%;       /* can't exceed padZone height */
+  max-height: 100%;
   position: relative; border-radius: var(--r);
   border: 1px solid var(--border); overflow: hidden;
   background: var(--pad-bg);
-  transition: border-color 0.2s, box-shadow 0.2s;
-  /* object-fit-like centering when aspect-ratio kicks in */
+  transition: border-color 0.2s, box-shadow 0.2s, aspect-ratio 0.3s;
   align-self: center;
 }
+/* Touchpad mode: taller surface = more gesture room */
+#mainArea.pad-active { aspect-ratio: 4 / 3; }
 
 /* Pad state classes */
 #mainArea.click-flash  { border-color: var(--cyan);  box-shadow: 0 0 0 2px var(--cyan-dim),   inset 0 0 28px var(--cyan-dim); }
@@ -675,6 +676,7 @@ window.setMode = m => {
   document.getElementById('btnPad').classList.toggle('active', m==='pad');
   airPad.classList.toggle('hidden', m==='pad');
   touchPad.classList.toggle('hidden', m==='air');
+  mainArea.classList.toggle('pad-active', m==='pad');
   resetHUD();
 };
 
