@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>AeroOS · V9</title>
+<title>AeroOS · V10</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -14,116 +14,61 @@
   --border-hi:rgba(255,255,255,0.25);
   --cyan:     #22d3ee;
   --cyan-dim: rgba(34,211,238,0.18);
-  --cyan-glow:rgba(34,211,238,0.35);
-  --green:    #4ade80;
-  --red:      #f87171;
   --text:     #f0f4ff;
   --muted:    #64748b;
+  --green:    #4ade80;
+  --red:      #f87171;
   --font-ui:  'Syne', sans-serif;
   --font-mono:'IBM Plex Mono', monospace;
 }
 
-/* Screen Light (Light Mode) Inversion */
 body.light-mode {
-  --bg:       #f1f5f9;
-  --surface:  #ffffff;
-  --border:   #cbd5e1;
-  --border-hi:#94a3b8;
-  --cyan:     #0284c7;
-  --cyan-dim: rgba(2, 132, 199, 0.15);
-  --cyan-glow:rgba(2, 132, 199, 0.2);
-  --text:     #0f172a;
-  --muted:    #475569;
+  --bg:       #f1f5f9; --surface:  #ffffff;
+  --border:   #cbd5e1; --border-hi:#94a3b8;
+  --cyan:     #0284c7; --cyan-dim: rgba(2, 132, 199, 0.15);
+  --text:     #0f172a; --muted:    #475569;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body {
-  height: 100%; overflow: hidden;
-  background: var(--bg); color: var(--text);
-  font-family: var(--font-ui);
-  touch-action: none; user-select: none;
-  transition: background 0.3s, color 0.3s;
-}
-
-#app {
-  display: flex; flex-direction: column;
-  height: 100%; padding: 14px 14px 20px; gap: 12px;
-  max-width: 600px; margin: 0 auto;
-}
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font-ui); touch-action: none; user-select: none; transition: background 0.3s, color 0.3s; }
+#app { display: flex; flex-direction: column; height: 100%; padding: 14px 14px 20px; gap: 12px; max-width: 600px; margin: 0 auto; }
 
 /* ── TOP BAR ── */
 #topbar { display: flex; align-items: center; justify-content: space-between; }
 #logo { font-size: 13px; font-weight: 800; letter-spacing: 0.15em; color: var(--cyan); }
-#logo span { color: var(--muted); font-weight: 400; }
 #wsLed { display: flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
-#wsLed .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
-#wsLed .dot.on  { background: var(--green); box-shadow: 0 0 8px var(--green); }
-#wsLed .dot.err { background: var(--red);   box-shadow: 0 0 8px var(--red); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.dot.err { background: var(--red); box-shadow: 0 0 8px var(--red); }
 
-/* ── CENTER STAGE (16:9 Layout) ── */
-#centerStage {
-  flex: 1; display: flex; flex-direction: column;
-  justify-content: center; gap: 12px; min-height: 0;
-}
-
-#mainArea {
-  width: 100%; aspect-ratio: 16 / 9;
-  position: relative; border-radius: 18px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  overflow: hidden; flex-shrink: 0;
-  transition: border-color 0.25s, box-shadow 0.25s;
-}
+/* ── CENTER STAGE ── */
+#centerStage { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; min-height: 0; }
+#mainArea { width: 100%; aspect-ratio: 16 / 9; position: relative; border-radius: 18px; border: 1px solid var(--border); background: var(--surface); overflow: hidden; flex-shrink: 0; transition: border-color 0.25s, box-shadow 0.25s; }
 #mainArea.click-flash { border-color: var(--cyan); box-shadow: inset 0 0 40px var(--cyan-dim); }
 
-/* Air Pad */
+/* Pads */
 #airPad { position: absolute; inset: 0; transition: opacity 0.3s; }
 .grid-dots { position: absolute; inset: 0; opacity: 0.12; background-image: radial-gradient(circle, var(--muted) 1px, transparent 1px); background-size: 22px 22px; }
 #airCursor { position: absolute; width: 28px; height: 28px; border: 2px solid var(--cyan); border-radius: 50%; transform: translate(-50%, -50%); background: var(--cyan-dim); pointer-events: none; transition: 0.1s; }
 
-/* Touchpad */
 #touchPad { display: none; height: 100%; flex-direction: column; }
 #touchPad.visible { display: flex; }
 #touchSurface { flex: 1; position: relative; }
 #touchHint { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-align: center; pointer-events: none; line-height: 1.6; letter-spacing: 0.05em; }
 #ghostDot { position: absolute; width: 10px; height: 10px; background: var(--cyan); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
 
-/* Laptop Hardware Buttons */
-#hardwareButtons {
-  display: none; height: 60px;
-  border-radius: 14px; border: 1px solid var(--border);
-  background: var(--surface); overflow: hidden; flex-shrink: 0;
-}
+/* Hardware Buttons */
+#hardwareButtons { display: none; height: 60px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); overflow: hidden; flex-shrink: 0; }
 #hardwareButtons.visible { display: flex; }
-.hw-btn {
-  flex: 1; display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: var(--muted);
-  letter-spacing: 0.1em; border-right: 1px solid var(--border);
-  transition: background 0.1s, color 0.1s; cursor: pointer;
-}
+.hw-btn { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.1em; border-right: 1px solid var(--border); cursor: pointer; }
 .hw-btn:last-child { border-right: none; }
 .hw-btn:active { background: var(--cyan-dim); color: var(--cyan); }
 
-/* ── STATUS TERMINAL ── */
-#status {
-  width: 100%; display: flex; align-items: center; gap: 10px; padding: 11px 15px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-  font-family: var(--font-mono); font-size: 11px; color: var(--cyan); letter-spacing: 0.05em;
-}
-
-/* ── CONTROLS ── */
-#controls {
-  width: 100%; display: flex; flex-direction: column; gap: 10px;
-  padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
-}
+/* ── STATUS & CONTROLS ── */
+#status { width: 100%; display: flex; align-items: center; padding: 11px 15px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; font-family: var(--font-mono); font-size: 11px; color: var(--cyan); letter-spacing: 0.05em; }
+#controls { width: 100%; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; }
 .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.action-btn {
-  padding: 12px 10px; border-radius: 10px; font-family: var(--font-ui);
-  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-  border: 1px solid var(--border); background: transparent; color: var(--muted);
-  cursor: pointer; transition: all 0.2s;
-}
+.action-btn { padding: 12px; border-radius: 10px; font-family: var(--font-ui); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; transition: all 0.2s; }
 .action-btn.active { background: var(--cyan-dim); border-color: var(--cyan); color: var(--cyan); }
 
 video { display: none; }
@@ -131,36 +76,28 @@ video { display: none; }
 </head>
 <body>
 <div id="app">
-
   <div id="topbar">
-    <div id="logo">AERO<span>OS</span> · V9</div>
+    <div id="logo">AERO<span>OS</span> · V10</div>
     <div id="wsLed"><div class="dot" id="wsDot"></div><span id="wsLabel">OFFLINE</span></div>
   </div>
 
   <div id="centerStage">
     <div id="mainArea">
-      <div id="airPad">
-        <div class="grid-dots"></div>
-        <div id="airCursor"></div>
-      </div>
-      
+      <div id="airPad"><div class="grid-dots"></div><div id="airCursor"></div></div>
       <div id="touchPad">
         <div id="touchSurface">
-          <div id="touchHint">SLIDE TO MOVE<br>DOUBLE TAP & HOLD TO DRAG<br>PINCH TO ZOOM</div>
+          <div id="touchHint">SLIDE TO MOVE · TAP TO CLICK<br>2 FINGERS: SCROLL / ZOOM<br>3 FINGERS: SWIPE UP/DOWN</div>
           <div id="ghostDot"></div>
         </div>
       </div>
     </div>
-
     <div id="hardwareButtons">
       <div class="hw-btn" id="btnLeftClick">LEFT CLICK</div>
       <div class="hw-btn" id="btnRightClick">RIGHT CLICK</div>
     </div>
   </div>
 
-  <div id="status">
-    <div id="statusText">SYSTEM STANDBY</div>
-  </div>
+  <div id="status"><div id="statusText">SYSTEM STANDBY</div></div>
 
   <div id="controls">
     <div class="btn-row">
@@ -172,7 +109,6 @@ video { display: none; }
       <button class="action-btn" id="btnFlash" onclick="toggleFlash()">Screen Light</button>
     </div>
   </div>
-
 </div>
 <video id="webcam" autoplay playsinline></video>
 
@@ -188,42 +124,35 @@ socket.onclose = () => { document.getElementById('wsDot').className = 'dot err';
 
 function wsSend(msg) { if (socket.readyState === WebSocket.OPEN) socket.send(msg); }
 
-// ── 1€ FILTER (For buttery smooth Air Tracking) ──
+// ── 1€ FILTER ───────────────────────────────────────
 class OneEuroFilter {
-  constructor(minCutoff = 1.0, beta = 0.5, dCutoff = 1.0) {
-    this.minCutoff = minCutoff; this.beta = beta; this.dCutoff = dCutoff;
-    this._x = null; this._dx = 0;
-  }
+  constructor() { this._x = null; this._dx = 0; }
   _alpha(c) { const r = 2 * Math.PI * c / 30; return r / (r + 1); }
   filter(v) {
     if (this._x === null) { this._x = v; return v; }
     const rawDx = v - this._x;
-    this._dx += (rawDx - this._dx) * this._alpha(this.dCutoff);
-    this._x  += (v - this._x) * this._alpha(this.minCutoff + this.beta * Math.abs(this._dx));
+    this._dx += (rawDx - this._dx) * this._alpha(1.0);
+    this._x  += (v - this._x) * this._alpha(1.0 + 0.5 * Math.abs(this._dx));
     return this._x;
   }
 }
 const fX = new OneEuroFilter(); const fY = new OneEuroFilter();
 
 // ── STATE ────────────────────────────────────────────
-let currentMode = 'air';
-let isFlash = false, useFrontCam = true;
-let handLandmarker = null;
+let currentMode = 'air', isFlash = false, useFrontCam = true, handLandmarker = null;
 let cursorX = 0.5, cursorY = 0.5;
 
 // Touchpad State
-let tpStartX = 0, tpStartY = 0;
-let lastTapT = 0, isDragging = false;
-let initialPinchDist = null;
+let tpStartX = 0, tpStartY = 0, tpStartT = 0, lastTapT = 0;
+let isDragging = false, gestureFired = false;
+let initialPinchDist = null, initialScrollY = null, initial3Y = null, hasSwiped3 = false;
 const tSurf = document.getElementById('touchSurface');
 
-// Air State
-let gestureCd = 0, locked = false, hoverF = 0, anchorX = 0.5, anchorY = 0.5;
+// Camera & Lens State
+let videoInputs = [], currentCamIdx = 0;
 
 // ── UI HELPERS ───────────────────────────────────────
-function alertMsg(msg) {
-  document.getElementById('statusText').textContent = msg;
-}
+function alertMsg(msg) { document.getElementById('statusText').textContent = msg; }
 
 window.setMode = (m) => {
   currentMode = m;
@@ -242,118 +171,146 @@ window.toggleFlash = () => {
   alertMsg(isFlash ? "SCREEN LIGHT ON" : "SCREEN LIGHT OFF");
 };
 
-window.toggleCamera = async () => {
-  useFrontCam = !useFrontCam;
-  const btn = document.getElementById('btnCam');
-  btn.textContent = useFrontCam ? "Front Cam" : "Rear Cam";
-  btn.classList.toggle('active', useFrontCam);
-  alertMsg("SWITCHING LENS...");
-  await bootCamera();
-};
-
-// ── TOUCHPAD LOGIC (Drag & Drop + Zoom) ──────────────
+// ── TOUCHPAD LOGIC (Unified + 3-Finger) ──────────────
 tSurf.addEventListener('touchstart', e => {
   e.preventDefault();
   document.getElementById('touchHint').style.opacity = 0;
+  tpStartT = Date.now(); gestureFired = false;
+  
+  if (e.touches.length === 3) {
+    initial3Y = (e.touches[0].clientY + e.touches[1].clientY + e.touches[2].clientY) / 3;
+    hasSwiped3 = false; return;
+  }
   
   if (e.touches.length === 2) {
     initialPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-    return;
+    initialScrollY = (e.touches[0].clientY + e.touches[1].clientY) / 2; return;
   }
 
-  const now = Date.now();
   tpStartX = e.touches[0].clientX; tpStartY = e.touches[0].clientY;
-
-  // Double Tap & Hold to Drag
-  if (now - lastTapT < 300) {
-    isDragging = true;
-    wsSend('GEST:LEFT_DOWN');
-    alertMsg("DRAGGING");
-  }
+  if (tpStartT - lastTapT < 300) { isDragging = true; wsSend('GEST:LEFT_DOWN'); alertMsg("DRAGGING"); }
 }, { passive: false });
 
 tSurf.addEventListener('touchmove', e => {
   e.preventDefault();
   
-  // Pinch Zoom
-  if (e.touches.length === 2 && initialPinchDist) {
-    const newDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-    if (newDist - initialPinchDist > 30) { wsSend('GEST:ZOOM_IN'); initialPinchDist = newDist; alertMsg("ZOOM IN"); }
-    else if (initialPinchDist - newDist > 30) { wsSend('GEST:ZOOM_OUT'); initialPinchDist = newDist; alertMsg("ZOOM OUT"); }
+  if (e.touches.length === 3 && initial3Y !== null && !hasSwiped3) {
+    const new3Y = (e.touches[0].clientY + e.touches[1].clientY + e.touches[2].clientY) / 3;
+    const dy = new3Y - initial3Y;
+    if (dy < -40) { wsSend('GEST:TASK_VIEW'); alertMsg("TASK VIEW"); hasSwiped3 = true; } 
+    else if (dy > 40) { wsSend('GEST:SHOW_DESKTOP'); alertMsg("SHOW DESKTOP"); hasSwiped3 = true; }
     return;
   }
+  
+  if (e.touches.length === 2 && initialPinchDist !== null) {
+    const newDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    const newY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const dy = newY - initialScrollY;
+    if (Math.abs(newDist - initialPinchDist) > 40) { 
+      wsSend(newDist > initialPinchDist ? 'GEST:ZOOM_IN' : 'GEST:ZOOM_OUT'); 
+      initialPinchDist = newDist; gestureFired = true; alertMsg("ZOOMING"); 
+    } else if (Math.abs(dy) > 15) {
+      wsSend(dy < 0 ? 'GEST:SCROLL_DOWN' : 'GEST:SCROLL_UP'); 
+      initialScrollY = newY; gestureFired = true; alertMsg("SCROLLING");
+    } return;
+  }
 
-  // Normal Move
-  const dx = e.touches[0].clientX - tpStartX;
-  const dy = e.touches[0].clientY - tpStartY;
-  
-  cursorX = Math.max(0, Math.min(1, cursorX + (dx * 0.0035)));
-  cursorY = Math.max(0, Math.min(1, cursorY + (dy * 0.0035)));
-  
-  wsSend(`${cursorX},${cursorY}`);
-  document.getElementById('ghostDot').style.left = `${cursorX * 100}%`;
-  document.getElementById('ghostDot').style.top = `${cursorY * 100}%`;
-  
-  tpStartX = e.touches[0].clientX; tpStartY = e.touches[0].clientY;
+  if (e.touches.length === 1) {
+    const dx = e.touches[0].clientX - tpStartX; const dy = e.touches[0].clientY - tpStartY;
+    if (Math.hypot(dx, dy) > 2) gestureFired = true;
+    cursorX = Math.max(0, Math.min(1, cursorX + (dx * 0.0035)));
+    cursorY = Math.max(0, Math.min(1, cursorY + (dy * 0.0035)));
+    wsSend(`${cursorX},${cursorY}`);
+    document.getElementById('ghostDot').style.left = `${cursorX * 100}%`;
+    document.getElementById('ghostDot').style.top = `${cursorY * 100}%`;
+    tpStartX = e.touches[0].clientX; tpStartY = e.touches[0].clientY;
+  }
 }, { passive: false });
 
 tSurf.addEventListener('touchend', e => {
   e.preventDefault();
-  initialPinchDist = null;
-  
-  if (isDragging) {
-    isDragging = false;
-    wsSend('GEST:LEFT_UP');
-    alertMsg("ITEM DROPPED");
-  } else if (e.changedTouches.length === 1) {
-    lastTapT = Date.now();
+  initialPinchDist = null; initialScrollY = null; initial3Y = null;
+  if (isDragging) { isDragging = false; wsSend('GEST:LEFT_UP'); alertMsg("ITEM DROPPED"); } 
+  else if (e.changedTouches.length === 1 && !gestureFired && !hasSwiped3) {
+    if (Date.now() - tpStartT < 200) { 
+      if (Date.now() - lastTapT < 300) { wsSend('GEST:DOUBLE_CLICK'); alertMsg("DOUBLE CLICK"); lastTapT = 0; } 
+      else { wsSend('GEST:CLICK'); alertMsg("CLICK"); lastTapT = Date.now(); }
+    }
   }
 }, { passive: false });
 
-// Hardware Buttons
 document.getElementById('btnLeftClick').addEventListener('touchstart', () => { wsSend('GEST:LEFT_DOWN'); alertMsg("LEFT DOWN"); });
 document.getElementById('btnLeftClick').addEventListener('touchend', () => { wsSend('GEST:LEFT_UP'); alertMsg("LEFT UP"); });
 document.getElementById('btnRightClick').addEventListener('touchstart', () => { wsSend('GEST:RIGHT_CLICK'); alertMsg("RIGHT CLICK"); });
 
-// ── AI CAMERA BOOT ───────────────────────────────────
+// ── ADVANCED LENS SCANNER & CAMERA BOOT ──────────────
+window.toggleCamera = async () => {
+  if (videoInputs.length < 2) { alertMsg("NO OTHER LENS FOUND"); return; }
+  currentCamIdx = (currentCamIdx + 1) % videoInputs.length;
+  
+  let rawLabel = videoInputs[currentCamIdx].label.toLowerCase();
+  let btnLabel = `LENS ${currentCamIdx + 1}`;
+  if (rawLabel.includes('front')) btnLabel = "FRONT CAM";
+  else if (rawLabel.includes('ultra') || rawLabel.includes('0.5')) btnLabel = "ULTRA WIDE";
+  else if (rawLabel.includes('tele') || rawLabel.includes('2x') || rawLabel.includes('3x')) btnLabel = "TELEPHOTO";
+  else if (rawLabel.includes('back')) btnLabel = "MAIN CAM";
+
+  const btn = document.getElementById('btnCam');
+  btn.textContent = btnLabel;
+  btn.classList.toggle('active', btnLabel !== "FRONT CAM");
+  alertMsg(`SWITCHED TO: ${btnLabel}`);
+  await bootCamera();
+};
+
+async function initLenses() {
+  try {
+    const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    tempStream.getTracks().forEach(t => t.stop());
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    videoInputs = devices.filter(d => d.kind === 'videoinput');
+  } catch (e) { console.error("Lens enumeration failed.", e); }
+}
+
 async function bootCamera() {
   const video = document.getElementById('webcam');
   if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: useFrontCam ? "user" : "environment", width: 640, height: 480, frameRate: 60 }
-  });
+  
+  const constraints = { video: { width: 640, height: 480, frameRate: 60 } };
+  if (videoInputs.length > 0) {
+    constraints.video.deviceId = { exact: videoInputs[currentCamIdx].deviceId };
+    useFrontCam = videoInputs[currentCamIdx].label.toLowerCase().includes('front');
+  } else {
+    constraints.video.facingMode = "user"; useFrontCam = true;
+  }
+  const stream = await navigator.mediaDevices.getUserMedia(constraints);
   video.srcObject = stream;
 }
 
+// ── AIR TRACKING LOOP ────────────────────────────────
+let gestureCd = 0, locked = false, hoverF = 0, anchorX = 0.5, anchorY = 0.5;
+
 async function bootAI() {
+  alertMsg("SCANNING HARDWARE..."); await initLenses();
   alertMsg("BOOTING NEURAL NET...");
   const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
   handLandmarker = await HandLandmarker.createFromOptions(vision, {
     baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`, delegate: "CPU" },
     runningMode: "VIDEO", numHands: 1
   });
-  await bootCamera();
-  alertMsg("SYSTEM ONLINE");
-  aiLoop();
+  await bootCamera(); alertMsg("SYSTEM ONLINE"); aiLoop();
 }
 
-// ── AIR TRACKING LOOP ────────────────────────────────
 async function aiLoop() {
   const video = document.getElementById('webcam');
   if (currentMode === 'air' && video.readyState >= 2 && handLandmarker) {
     const res = await handLandmarker.detectForVideo(video, performance.now());
-    
     if (res.landmarks?.[0]) {
-      const lm = res.landmarks[0];
-      let rawX = useFrontCam ? (1 - lm[8].x) : lm[8].x;
-      
+      const tip = res.landmarks[0][8];
+      let rawX = useFrontCam ? (1 - tip.x) : tip.x;
       if (gestureCd > 0) gestureCd--;
       else {
-        // Dwell Click Logic
-        const targetX = fX.filter(rawX);
-        const targetY = fY.filter(lm[8].y);
+        const targetX = fX.filter(rawX); const targetY = fY.filter(tip.y);
         const drift = Math.hypot(targetX - anchorX, targetY - anchorY);
-
         if (locked) {
           cursorX = anchorX; cursorY = anchorY; hoverF++;
           if (drift > 0.05) { locked = false; hoverF = 0; document.getElementById('mainArea').classList.remove('click-flash'); }
@@ -364,7 +321,6 @@ async function aiLoop() {
           if (drift < 0.015) { if (++hoverF > 5) { locked = true; anchorX = cursorX; anchorY = cursorY; } } 
           else { hoverF = 0; anchorX = cursorX; anchorY = cursorY; }
         }
-
         document.getElementById('airCursor').style.left = `${cursorX * 100}%`;
         document.getElementById('airCursor').style.top = `${cursorY * 100}%`;
         wsSend(`${cursorX},${cursorY}`);
