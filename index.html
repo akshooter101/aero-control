@@ -2,840 +2,283 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>AeroOS · V7</title>
+<title>AeroOS · V8 PRO</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+
 <style>
-:root {
-  --bg:       #070d1a;
-  --surface:  rgba(255,255,255,0.04);
-  --border:   rgba(255,255,255,0.08);
+:root{
+  --bg:#070d1a;
+  --surface:rgba(255,255,255,0.04);
+  --border:rgba(255,255,255,0.08);
   --border-hi:rgba(255,255,255,0.16);
-  --cyan:     #22d3ee;
-  --cyan-dim: rgba(34,211,238,0.18);
-  --cyan-glow:rgba(34,211,238,0.35);
-  --amber:    #fbbf24;
-  --green:    #4ade80;
-  --red:      #f87171;
-  --text:     #f0f4ff;
-  --muted:    #4a5578;
-  --font-ui:  'Syne', sans-serif;
-  --font-mono:'IBM Plex Mono', monospace;
-  --r:        18px;
-  --r-sm:     12px;
+  --cyan:#22d3ee;
+  --cyan-dim:rgba(34,211,238,0.2);
+  --text:#fff;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body {
-  height: 100%; overflow: hidden;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-ui);
-  touch-action: none;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Syne',sans-serif;
+  overflow:hidden;
 }
 
-/* ── NOISE OVERLAY ── */
-body::before {
-  content: '';
-  position: fixed; inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-  pointer-events: none; z-index: 0; opacity: 0.6;
+#app{
+  max-width:420px;
+  margin:auto;
+  padding:10px;
 }
 
-/* ── LAYOUT ── */
-#app {
-  position: relative; z-index: 1;
-  height: 100%;
-  display: flex; flex-direction: column;
-  align-items: center;
-  padding: 14px 14px 20px;
-  gap: 12px;
-  max-width: 600px; margin: 0 auto;
-}
-
-/* ── TOP BAR ── */
-#topbar {
-  width: 100%;
-  display: flex; align-items: center; justify-content: space-between;
-}
-
-#logo {
-  font-size: 13px; font-weight: 800; letter-spacing: 0.15em;
-  color: var(--cyan); text-transform: uppercase;
-  display: flex; align-items: center; gap: 6px;
-}
-#logo span { color: var(--muted); font-weight: 400; }
-
-/* WS status LED */
-#wsLed {
-  display: flex; align-items: center; gap: 7px;
-  font-family: var(--font-mono); font-size: 10px; color: var(--muted);
-}
-#wsLed .dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--muted);
-  transition: background 0.4s, box-shadow 0.4s;
-}
-#wsLed .dot.on  { background: var(--green); box-shadow: 0 0 8px var(--green); }
-#wsLed .dot.err { background: var(--red);   box-shadow: 0 0 8px var(--red); }
-
-/* ── MODE TOGGLE ── */
-#modeToggle {
-  width: 100%;
-  display: grid; grid-template-columns: 1fr 1fr;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px; padding: 4px; gap: 4px;
-  position: relative;
-}
-.mode-btn {
-  position: relative; z-index: 1;
-  padding: 11px 0; border: none; border-radius: 10px;
-  font-family: var(--font-ui); font-size: 13px; font-weight: 700;
-  letter-spacing: 0.06em; text-transform: uppercase;
-  cursor: pointer; transition: color 0.25s;
-  background: transparent; color: var(--muted);
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-}
-.mode-btn.active { color: #000; }
-.mode-btn svg { width: 15px; height: 15px; }
-
-#modeSlider {
-  position: absolute; inset: 4px;
-  width: calc(50% - 6px);
-  background: var(--cyan);
-  border-radius: 10px;
-  transition: transform 0.3s cubic-bezier(.4,0,.2,1);
-  box-shadow: 0 0 20px var(--cyan-glow);
-  pointer-events: none;
-}
-#modeSlider.pad { transform: translateX(calc(100% + 4px)); }
-
-/* ── MAIN PAD AREA ── */
-#mainArea {
-  width: 100%; flex: 1; min-height: 0;
-  position: relative; border-radius: var(--r);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  transition: border-color 0.25s;
+/* VERTICAL PAD */
+#mainArea{
+  width:100%;
+  height:70vh;
+  border:1px solid var(--border);
+  border-radius:18px;
+  position:relative;
+  overflow:hidden;
 }
 
 /* AIR PAD */
-#airPad {
-  position: absolute; inset: 0;
-  background: radial-gradient(ellipse at 30% 40%, rgba(34,211,238,0.05) 0%, transparent 70%);
-  transition: opacity 0.3s;
-}
-.grid-dots {
-  position: absolute; inset: 0; opacity: 0.12;
-  background-image: radial-gradient(circle, var(--muted) 1px, transparent 1px);
-  background-size: 22px 22px;
+#airPad{
+  position:absolute; inset:0;
 }
 
-/* scan line effect */
-#airPad::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent,
-    transparent 3px,
-    rgba(0,0,0,0.08) 3px,
-    rgba(0,0,0,0.08) 4px
-  );
-  pointer-events: none;
+#airCursor{
+  width:24px;height:24px;
+  border:2px solid var(--cyan);
+  border-radius:50%;
+  position:absolute;
+  transform:translate(-50%,-50%);
 }
-
-#airCursor {
-  position: absolute; width: 28px; height: 28px;
-  border: 2px solid var(--cyan); border-radius: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  transition: border-color 0.15s, background 0.15s;
-  background: var(--cyan-dim);
-}
-#airCursor::before {
-  content: ''; position: absolute; inset: -8px;
-  border: 1px solid rgba(34,211,238,0.2); border-radius: 50%;
-}
-#airCursor.clicking { border-color: #fff; background: rgba(255,255,255,0.2); box-shadow: 0 0 20px #fff; }
 
 /* TOUCH PAD */
-#touchPad {
-  position: absolute; inset: 0;
-  background: radial-gradient(ellipse at 50% 50%, rgba(34,211,238,0.04) 0%, transparent 80%);
-  cursor: none; opacity: 0;
-  transition: opacity 0.3s;
-  display: flex; align-items: center; justify-content: center;
-  pointer-events: none;
-}
-#touchPad.visible { opacity: 1; pointer-events: all; }
-#airPad.hidden { opacity: 0; pointer-events: none; }
-
-/* Touchpad corner markers */
-.corner {
-  position: absolute; width: 18px; height: 18px;
-  border-color: var(--border-hi); border-style: solid;
-  opacity: 0.5;
-}
-.corner.tl { top: 12px; left: 12px;  border-width: 1.5px 0 0 1.5px; border-radius: 4px 0 0 0; }
-.corner.tr { top: 12px; right: 12px; border-width: 1.5px 1.5px 0 0; border-radius: 0 4px 0 0; }
-.corner.bl { bottom: 12px; left: 12px;  border-width: 0 0 1.5px 1.5px; border-radius: 0 0 0 4px; }
-.corner.br { bottom: 12px; right: 12px; border-width: 0 1.5px 1.5px 0; border-radius: 0 0 4px 0; }
-
-/* Ghost cursor dot on touchpad */
-#ghostDot {
-  position: absolute;
-  width: 10px; height: 10px;
-  background: var(--cyan);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 12px var(--cyan-glow);
-  pointer-events: none;
-  transition: left 0.05s linear, top 0.05s linear;
+#touchPad{
+  position:absolute; inset:0;
+  display:none;
 }
 
-/* Touch hint text */
-#touchHint {
-  font-family: var(--font-mono); font-size: 11px; color: var(--muted);
-  letter-spacing: 0.08em; text-align: center;
-  line-height: 2; pointer-events: none;
-  transition: opacity 0.5s;
+/* TOUCHPAD BUTTONS */
+#tpButtons{
+  position:absolute;
+  bottom:0;
+  width:100%;
+  height:60px;
+  display:flex;
+  border-top:1px solid var(--border-hi);
 }
-#touchHint.hidden { opacity: 0; }
+.tp-btn{
+  flex:1;
+  border-right:1px solid var(--border-hi);
+}
+.tp-btn:last-child{border-right:none;}
+.tp-btn:active{background:var(--cyan-dim);}
 
-/* Ripple */
-.ripple {
-  position: absolute; border-radius: 50%;
-  background: radial-gradient(circle, rgba(34,211,238,0.35), transparent 70%);
-  transform: translate(-50%, -50%) scale(0);
-  animation: rippleAnim 0.5s ease-out forwards;
-  pointer-events: none;
+/* CONTROLS */
+#controls{
+  display:flex;
+  gap:8px;
+  margin-top:10px;
 }
-@keyframes rippleAnim {
-  to { transform: translate(-50%, -50%) scale(6); opacity: 0; }
-}
-
-/* Two-finger indicator */
-#twoFingerHint {
-  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
-  font-family: var(--font-mono); font-size: 10px; color: var(--cyan);
-  letter-spacing: 0.1em; opacity: 0;
-  transition: opacity 0.2s; pointer-events: none;
-}
-#twoFingerHint.show { opacity: 1; }
-
-/* clicking state on pad */
-#mainArea.click-flash { border-color: var(--cyan); box-shadow: inset 0 0 40px var(--cyan-dim); }
-#mainArea.dbl-flash   { border-color: #fff; box-shadow: inset 0 0 60px rgba(255,255,255,0.15); }
-
-/* ── STATUS TERMINAL ── */
-#status {
-  width: 100%;
-  display: flex; align-items: center; gap: 10px;
-  padding: 11px 15px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  font-family: var(--font-mono); font-size: 12px; color: var(--cyan);
-  letter-spacing: 0.05em;
-  transition: background 0.2s, color 0.2s;
-  overflow: hidden;
-}
-#status .blink {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--cyan); flex-shrink: 0;
-  animation: blink 1.2s ease-in-out infinite;
-}
-@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
-#status.alert { background: var(--cyan-dim); color: #fff; }
-#status.alert .blink { background: #fff; animation: none; }
-#statusText { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ── CONTROLS ── */
-#controls {
-  width: 100%;
-  display: flex; flex-direction: column; gap: 10px;
-  padding: 14px 16px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r);
+button{
+  flex:1;
+  padding:10px;
+  border:none;
+  border-radius:10px;
+  background:#111;
+  color:#fff;
 }
 
-.ctrl-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+/* MODE */
+#mode{
+  display:flex;
+  margin-bottom:8px;
 }
-
-.ctrl-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--muted);
-  white-space: nowrap;
+.mode-btn{
+  flex:1;
+  padding:8px;
+  border:none;
+  background:#111;
 }
-.ctrl-val {
-  font-family: var(--font-mono); font-size: 11px; color: var(--cyan);
-}
-
-input[type="range"] {
-  flex: 1; -webkit-appearance: none; background: transparent; height: 18px;
-}
-input[type="range"]::-webkit-slider-runnable-track {
-  height: 3px;
-  background: linear-gradient(to right, var(--cyan) var(--pct, 30%), rgba(255,255,255,0.08) var(--pct, 30%));
-  border-radius: 10px;
-}
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 18px; height: 18px; border-radius: 50%;
-  background: var(--cyan); margin-top: -7.5px;
-  box-shadow: 0 0 10px var(--cyan-glow);
-  border: 2px solid #000;
-}
-
-/* ── BUTTON GRID ── */
-.btn-row {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-}
-.action-btn {
-  padding: 12px 10px; border-radius: var(--r-sm);
-  font-family: var(--font-ui); font-size: 12px; font-weight: 700;
-  letter-spacing: 0.06em; text-transform: uppercase;
-  border: 1px solid var(--border); background: var(--surface);
-  color: var(--muted); cursor: pointer;
-  transition: all 0.2s;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-}
-.action-btn:active { transform: scale(0.97); }
-.action-btn.on {
-  background: var(--cyan-dim); border-color: var(--cyan);
-  color: var(--cyan); box-shadow: 0 0 14px var(--cyan-dim);
-}
-.action-btn.sys-on {
-  background: rgba(74, 222, 128, 0.12); border-color: var(--green);
-  color: var(--green);
-}
-
-video { display: none; }
+.mode-btn.active{background:var(--cyan);color:#000;}
 </style>
 </head>
+
 <body>
+
 <div id="app">
 
-  <!-- TOP BAR -->
-  <div id="topbar">
-    <div id="logo">AERO<span>OS</span> · V7</div>
-    <div id="wsLed">
-      <div class="dot" id="wsDot"></div>
-      <span id="wsLabel">OFFLINE</span>
-    </div>
+<div id="mode">
+  <button class="mode-btn active" onclick="setMode('air')" id="btnAir">AIR</button>
+  <button class="mode-btn" onclick="setMode('pad')" id="btnPad">PAD</button>
+</div>
+
+<div id="mainArea">
+  <div id="airPad">
+    <div id="airCursor"></div>
   </div>
 
-  <!-- MODE TOGGLE -->
-  <div id="modeToggle">
-    <div id="modeSlider"></div>
-    <button class="mode-btn active" id="btnAir" onclick="setMode('air')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
-      Air Track
-    </button>
-    <button class="mode-btn" id="btnPad" onclick="setMode('pad')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5" width="18" height="14" rx="3"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
-      Touchpad
-    </button>
+  <div id="touchPad">
+    <div id="tpButtons">
+      <div class="tp-btn left"></div>
+      <div class="tp-btn right"></div>
+    </div>
   </div>
+</div>
 
-  <!-- MAIN AREA -->
-  <div id="mainArea">
-    <!-- Air mode -->
-    <div id="airPad">
-      <div class="grid-dots"></div>
-      <div id="airCursor"></div>
-    </div>
-    <!-- Touchpad mode -->
-    <div id="touchPad">
-      <div class="corner tl"></div><div class="corner tr"></div>
-      <div class="corner bl"></div><div class="corner br"></div>
-      <div id="ghostDot"></div>
-      <div id="touchHint">SLIDE TO MOVE &nbsp;·&nbsp; TAP TO CLICK<br>TWO FINGERS: SCROLL / RIGHT CLICK</div>
-      <div id="twoFingerHint">⬆⬇ SCROLLING</div>
-    </div>
-  </div>
-
-  <!-- STATUS -->
-  <div id="status">
-    <div class="blink"></div>
-    <div id="statusText">SYSTEM STANDBY</div>
-  </div>
-
-  <!-- CONTROLS -->
-  <div id="controls">
-    <div class="ctrl-row">
-      <span class="ctrl-label">Speed</span>
-      <input type="range" id="sensSlider" min="10" max="40" value="15">
-      <span class="ctrl-val" id="sensVal">1.5×</span>
-    </div>
-    <div class="btn-row">
-      <button class="action-btn sys-on" id="btnSys" onclick="toggleSystem()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        System On
-      </button>
-      <button class="action-btn" id="btnFlash" onclick="toggleFlash()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 2H9l-1 7h4l-2 13 9-11h-5l1-9z"/></svg>
-        Screen Light
-      </button>
-    </div>
-  </div>
+<div id="controls">
+  <button onclick="toggleFlash()">Light</button>
+  <button onclick="switchCamera()">Camera</button>
+</div>
 
 </div>
-<video id="webcam" autoplay playsinline></video>
+
+<video id="video" autoplay playsinline style="display:none"></video>
 
 <script type="module">
 import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
 
-// ── CONFIG ──────────────────────────────────────────
-const NGROK_URL   = "vigorously-heterochthonous-mitch.ngrok-free.dev";
+/* ================= CONFIG ================= */
+const socket = new WebSocket("wss://YOUR_NGROK");
 
-// Corner fix: hand rarely reaches < 12% or > 88% of camera
-// Remap [EDGE, 1-EDGE] → [0, 1] so full corners are reachable
-const EDGE_CLIP   = 0.12;
-
-// Edge acceleration: boost when cursor is near screen edges
-function edgeAccel(v) {
-  // slight cubic push outward from 0 and 1
-  const d = v - 0.5;
-  return Math.max(0, Math.min(1, 0.5 + d * (1 + Math.abs(d) * 0.8)));
+/* ================= BASIC ================= */
+function wsSend(m){
+  if(socket.readyState===1) socket.send(m);
 }
 
-function remapEdge(v) {
-  return Math.max(0, Math.min(1, (v - EDGE_CLIP) / (1 - 2 * EDGE_CLIP)));
+/* ================= MODE ================= */
+let mode="air";
+function setMode(m){
+  mode=m;
+  document.getElementById("airPad").style.display=m==="air"?"block":"none";
+  document.getElementById("touchPad").style.display=m==="pad"?"block":"none";
+  btnAir.classList.toggle("active",m==="air");
+  btnPad.classList.toggle("active",m==="pad");
 }
 
-// ── 1€ FILTER ───────────────────────────────────────
-class OneEuroFilter {
-  constructor(minCutoff = 1.2, beta = 0.5, dCutoff = 1.0) {
-    this.minCutoff = minCutoff; this.beta = beta; this.dCutoff = dCutoff;
-    this._x = null; this._dx = 0;
+/* ================= FLASH ================= */
+let flash=false;
+function toggleFlash(){
+  flash=!flash;
+
+  document.body.style.background=flash?"#fff":"#070d1a";
+
+  document.documentElement.style.setProperty(
+    '--border',
+    flash?'rgba(0,0,0,0.2)':'rgba(255,255,255,0.08)'
+  );
+}
+
+/* ================= CAMERA ================= */
+let back=false;
+async function switchCamera(){
+  back=!back;
+
+  const stream=await navigator.mediaDevices.getUserMedia({
+    video:{
+      facingMode:back?"environment":"user"
+    }
+  });
+
+  video.srcObject=stream;
+}
+
+/* ================= TOUCHPAD ================= */
+let cx=0.5,cy=0.5;
+let dragging=false,dragTimer=null,lastDist=0;
+
+touchPad.addEventListener("touchstart",e=>{
+  if(e.touches.length===1){
+    dragTimer=setTimeout(()=>{
+      dragging=true;
+      wsSend("GEST:DRAG_START");
+    },300);
   }
-  _alpha(c) { const r = 2 * Math.PI * c / 30; return r / (r + 1); }
-  filter(v) {
-    if (this._x === null) { this._x = v; return v; }
-    const rawDx = v - this._x;
-    this._dx += (rawDx - this._dx) * this._alpha(this.dCutoff);
-    this._x  += (v - this._x) * this._alpha(this.minCutoff + this.beta * Math.abs(this._dx));
-    return this._x;
-  }
-  reset(v) { this._x = v; this._dx = 0; }
-}
-
-const fX = new OneEuroFilter(1.2, 0.5);
-const fY = new OneEuroFilter(1.2, 0.5);
-
-// ── CONSTANTS ────────────────────────────────────────
-const HOVER_SINGLE   = 25;
-const HOVER_DOUBLE   = 40;
-const LOCK_TOL       = 0.022;
-const BREAKAWAY      = 0.06;
-const SEND_THRESH    = 0.002;
-const CONFIRM_FRAMES = 2;
-const GESTURE_CD = {
-  SCROLL_UP:20, SCROLL_DOWN:20, RIGHT_CLICK:35,
-  SCREENSHOT:50, PINCH_5:40, THUMBS_UP:40,
-  SWIPE_LEFT:35, SWIPE_RIGHT:35, CLICK:50, DOUBLE_CLICK:50
-};
-
-// ── STATE ────────────────────────────────────────────
-let cursorX = 0.5, cursorY = 0.5;
-let anchorX = 0.5, anchorY = 0.5;
-let prevTX = 0.5, prevTY = 0.5, prevWY = 0;
-let locked = false, hoverF = 0, gestureCd = 0;
-let pendingG = null, pendingGC = 0;
-let scrollBuf = [];
-let statusTimer = 0;
-let lastSX = -1, lastSY = -1;
-let isActive = true, isFlash = false;
-let currentMode = 'air';
-let handLandmarker = null;
-
-// ── DOM ──────────────────────────────────────────────
-const airCursor   = document.getElementById('airCursor');
-const airPad      = document.getElementById('airPad');
-const touchPad    = document.getElementById('touchPad');
-const ghostDot    = document.getElementById('ghostDot');
-const mainArea    = document.getElementById('mainArea');
-const statusText  = document.getElementById('statusText');
-const statusEl    = document.getElementById('status');
-const sensSlider  = document.getElementById('sensSlider');
-const sensVal     = document.getElementById('sensVal');
-const wsDot       = document.getElementById('wsDot');
-const wsLabel     = document.getElementById('wsLabel');
-const touchHint   = document.getElementById('touchHint');
-const twoFingerHint = document.getElementById('twoFingerHint');
-const video       = document.getElementById('webcam');
-const modeSlider  = document.getElementById('modeSlider');
-
-// Update slider track fill
-sensSlider.addEventListener('input', () => {
-  const pct = ((sensSlider.value - 10) / 30 * 100).toFixed(0) + '%';
-  sensSlider.style.setProperty('--pct', pct);
-  sensVal.textContent = (sensSlider.value / 10).toFixed(1) + '×';
 });
-sensSlider.dispatchEvent(new Event('input'));
 
-// ── WEBSOCKET ────────────────────────────────────────
-const socket = new WebSocket(`wss://${NGROK_URL}`);
-socket.onopen  = () => { wsDot.className = 'dot on'; wsLabel.textContent = 'LINKED'; };
-socket.onclose = () => { wsDot.className = 'dot err'; wsLabel.textContent = 'OFFLINE'; };
-socket.onerror = () => { wsDot.className = 'dot err'; wsLabel.textContent = 'ERROR'; };
-
-function wsSend(msg) {
-  if (socket.readyState === WebSocket.OPEN) socket.send(msg);
-}
-
-// ── HUD ──────────────────────────────────────────────
-function alert2(msg) {
-  statusText.textContent = msg;
-  statusEl.classList.add('alert');
-  statusTimer = 70;
-}
-function resetHUD() {
-  statusEl.classList.remove('alert');
-  statusText.textContent = currentMode === 'air' ? 'AIR TRACKING · ACTIVE' : 'TOUCHPAD · ACTIVE';
-}
-
-// ── MODE TOGGLE ──────────────────────────────────────
-window.setMode = function(m) {
-  currentMode = m;
-  modeSlider.className = m === 'pad' ? 'pad' : '';
-  document.getElementById('btnAir').classList.toggle('active', m === 'air');
-  document.getElementById('btnPad').classList.toggle('active', m === 'pad');
-
-  if (m === 'pad') {
-    airPad.classList.add('hidden');
-    touchPad.classList.add('visible');
-    touchHint.classList.remove('hidden');
-  } else {
-    airPad.classList.remove('hidden');
-    touchPad.classList.remove('visible');
-  }
-  resetHUD();
-};
-
-// ── SYSTEM / FLASH ───────────────────────────────────
-window.toggleSystem = function() {
-  isActive = !isActive;
-  const btn = document.getElementById('btnSys');
-  btn.textContent = isActive ? ' System On' : ' System Off';
-  btn.className = isActive ? 'action-btn sys-on' : 'action-btn';
-  alert2(isActive ? 'SYSTEM ONLINE' : 'SYSTEM OFFLINE');
-};
-
-window.toggleFlash = function() {
-  isFlash = !isFlash;
-  document.getElementById('btnFlash').classList.toggle('on', isFlash);
-  document.body.style.background = isFlash ? '#ffffff' : '';
-  alert2(isFlash ? 'ILLUMINATION ON' : 'ILLUMINATION OFF');
-};
-
-// ── SEND POSITION ─────────────────────────────────────
-function sendPos(x, y, force = false) {
-  const dx = x - lastSX, dy = y - lastSY;
-  if (force || Math.hypot(dx, dy) > SEND_THRESH) {
-    wsSend(`${x.toFixed(3)},${y.toFixed(3)}`);
-    lastSX = x; lastSY = y;
-    // Update ghost dot
-    ghostDot.style.left = `${x * 100}%`;
-    ghostDot.style.top  = `${y * 100}%`;
-  }
-}
-
-// ── RIPPLE ────────────────────────────────────────────
-function spawnRipple(x, y) {
-  const r = document.createElement('div');
-  r.className = 'ripple';
-  r.style.left = x + 'px'; r.style.top = y + 'px';
-  r.style.width = r.style.height = '20px';
-  touchPad.appendChild(r);
-  r.addEventListener('animationend', () => r.remove());
-}
-
-// ── TOUCHPAD MODE ─────────────────────────────────────
-let tp = { active: false, startX: 0, startY: 0, id: null,
-           tapT: 0, lastTapT: 0, twoFinger: false };
-
-touchPad.addEventListener('touchstart', e => {
-  e.preventDefault();
-  touchHint.classList.add('hidden');
-
-  if (e.touches.length === 2) {
-    tp.twoFinger = true;
-    tp.startX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    tp.startY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-    twoFingerHint.classList.add('show');
-    return;
+touchPad.addEventListener("touchmove",e=>{
+  if(e.touches.length===1){
+    const t=e.touches[0];
+    cx+=t.movementX*0.002;
+    cy+=t.movementY*0.002;
+    wsSend(`${cx},${cy}`);
   }
 
-  tp.twoFinger = false;
-  twoFingerHint.classList.remove('show');
-  const t = e.touches[0];
-  tp.active = true; tp.id = t.identifier;
-  tp.startX = t.clientX; tp.startY = t.clientY;
-  tp.tapT = Date.now();
-}, { passive: false });
+  if(e.touches.length===2){
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    const d=Math.hypot(dx,dy);
 
-touchPad.addEventListener('touchmove', e => {
-  e.preventDefault();
-  if (e.touches.length === 2) {
-    // Two-finger scroll
-    const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-    const dy = my - tp.startY;
-    if (Math.abs(dy) > 4) {
-      const dir = dy < 0 ? 'SCROLL_UP' : 'SCROLL_DOWN';
-      wsSend(`GEST:${dir}`);
-      twoFingerHint.textContent = dy < 0 ? '⬆ SCROLL UP' : '⬇ SCROLL DOWN';
-      tp.startX = mx; tp.startY = my;
+    if(lastDist){
+      if(d>lastDist+5) wsSend("GEST:ZOOM_IN");
+      else if(d<lastDist-5) wsSend("GEST:ZOOM_OUT");
     }
-    return;
+    lastDist=d;
   }
-  twoFingerHint.classList.remove('show');
+});
 
-  if (!tp.active) return;
-  const t = [...e.touches].find(tt => tt.identifier === tp.id);
-  if (!t) return;
+touchPad.addEventListener("touchend",()=>{
+  clearTimeout(dragTimer);
+  if(dragging) wsSend("GEST:DRAG_END");
+  dragging=false;
+  lastDist=0;
+});
 
-  const rawDx = t.clientX - tp.startX;
-  const rawDy = t.clientY - tp.startY;
+/* BUTTONS */
+document.querySelector(".left").onclick=()=>wsSend("GEST:CLICK");
+document.querySelector(".right").onclick=()=>wsSend("GEST:RIGHT_CLICK");
 
-  // Velocity-based acceleration
-  const speed = Math.hypot(rawDx, rawDy);
-  const accel = speed < 8 ? 0.0028 : (speed < 20 ? 0.0042 : 0.006);
+/* ================= AIR TRACKING ================= */
+let handLandmarker,video=document.getElementById("video");
+let cursorX=0.5,cursorY=0.5;
 
-  cursorX = Math.max(0, Math.min(1, cursorX + rawDx * accel));
-  cursorY = Math.max(0, Math.min(1, cursorY + rawDy * accel));
+class Filter{
+  constructor(){this.v=null;}
+  f(n){this.v=this.v==null?n:this.v+(n-this.v)*0.2;return this.v;}
+}
+const fx=new Filter(),fy=new Filter();
 
-  tp.startX = t.clientX; tp.startY = t.clientY;
-  sendPos(cursorX, cursorY);
-}, { passive: false });
+async function init(){
+  const vision=await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
+  );
 
-touchPad.addEventListener('touchend', e => {
-  e.preventDefault();
-  twoFingerHint.classList.remove('show');
-  tp.twoFinger = false;
-  if (!tp.active) return;
+  handLandmarker=await HandLandmarker.createFromOptions(vision,{
+    baseOptions:{
+      modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+    },
+    runningMode:"VIDEO",
+    numHands:1
+  });
 
-  const elapsed = Date.now() - tp.tapT;
-  const totalMove = Math.hypot(tp.startX - (e.changedTouches[0]?.clientX ?? tp.startX),
-                                tp.startY - (e.changedTouches[0]?.clientY ?? tp.startY));
-
-  if (elapsed < 200 && totalMove < 10) {
-    // Tap
-    const now = Date.now();
-    const sinceLastTap = now - tp.lastTapT;
-    const rect = touchPad.getBoundingClientRect();
-    const tx = e.changedTouches[0]?.clientX - rect.left ?? rect.width / 2;
-    const ty = e.changedTouches[0]?.clientY - rect.top ?? rect.height / 2;
-    spawnRipple(tx, ty);
-
-    if (sinceLastTap < 350) {
-      // Double tap
-      wsSend('GEST:DOUBLE_CLICK');
-      alert2('DOUBLE CLICK');
-      mainArea.classList.add('dbl-flash');
-      setTimeout(() => mainArea.classList.remove('dbl-flash'), 300);
-      tp.lastTapT = 0;
-    } else {
-      wsSend('GEST:CLICK');
-      alert2('CLICK');
-      mainArea.classList.add('click-flash');
-      setTimeout(() => mainArea.classList.remove('click-flash'), 200);
-      tp.lastTapT = now;
-    }
-  }
-  tp.active = false;
-}, { passive: false });
-
-// Long press = right click
-let longPressTimer = null;
-touchPad.addEventListener('touchstart', e => {
-  if (e.touches.length !== 1) return;
-  longPressTimer = setTimeout(() => {
-    wsSend('GEST:RIGHT_CLICK');
-    alert2('RIGHT CLICK');
-    const rect = touchPad.getBoundingClientRect();
-    spawnRipple(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
-  }, 600);
-}, { passive: false });
-touchPad.addEventListener('touchend',  () => clearTimeout(longPressTimer), { passive: false });
-touchPad.addEventListener('touchmove', () => clearTimeout(longPressTimer), { passive: false });
-
-// ── HELPERS (AIR) ─────────────────────────────────────
-function fingerUp(lm, tip, dip) { return lm[tip].y < lm[dip].y; }
-
-function fireGesture(name) {
-  wsSend(`GEST:${name}`);
-  alert2(name.replace(/_/g, ' '));
-  gestureCd = GESTURE_CD[name] ?? 40;
-  scrollBuf = [];
+  switchCamera();
+  loop();
 }
 
-// ── BOOT ──────────────────────────────────────────────
-async function boot() {
-  try {
-    alert2('BOOTING NPU…');
-    const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
-    );
-    handLandmarker = await HandLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-        delegate: "CPU"
-      },
-      runningMode: "VIDEO", numHands: 1
-    });
+async function loop(){
+  if(mode==="air" && video.readyState>=2){
+    const res=await handLandmarker.detectForVideo(video,performance.now());
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 60, max: 120 } }
-    });
-    video.srcObject = stream;
-    await video.play();
-    alert2('TRACKING ONLINE');
-    loop();
-  } catch {
-    alert2('CAMERA BLOCKED');
-  }
-}
+    if(res.landmarks?.[0]){
+      const tip=res.landmarks[0][8];
 
-// ── MAIN LOOP ─────────────────────────────────────────
-async function loop() {
-  if (currentMode === 'air' && isActive && video.readyState >= 2 && handLandmarker) {
-    const res = await handLandmarker.detectForVideo(video, performance.now());
+      cursorX=fx.f(1-tip.x);
+      cursorY=fy.f(tip.y);
 
-    if (statusTimer > 0 && --statusTimer === 0) resetHUD();
+      airCursor.style.left=(cursorX*100)+"%";
+      airCursor.style.top=(cursorY*100)+"%";
 
-    if (res.landmarks?.[0]) {
-      const lm  = res.landmarks[0];
-      const tip = lm[8], wrist = lm[0];
-      const sens = sensSlider.value / 10;
-
-      // ── CORNER FIX: remap + edge acceleration ──
-      const rawX = remapEdge(1 - tip.x);
-      const rawY = remapEdge(tip.y);
-      const targetX = Math.max(0, Math.min(1, edgeAccel((rawX - 0.5) * sens + 0.5)));
-      const targetY = Math.max(0, Math.min(1, edgeAccel((rawY - 0.5) * sens + 0.5)));
-
-      if (gestureCd > 0) {
-        gestureCd--;
-        cursorX = fX.filter(targetX);
-        cursorY = fY.filter(targetY);
-        locked = false; hoverF = 0;
-        anchorX = cursorX; anchorY = cursorY;
-        pendingG = null; pendingGC = 0;
-        airCursor.style.transform = `translate(-50%,-50%) scale(1)`;
-        airCursor.classList.remove('clicking');
-        mainArea.classList.remove('click-flash', 'dbl-flash');
-      } else {
-        // ── GESTURE DETECT ──
-        const iU = fingerUp(lm,8,6), mU = fingerUp(lm,12,10),
-              rU = fingerUp(lm,16,14), pU = fingerUp(lm,20,18);
-        const open   = iU && mU && rU && pU;
-        const three  = iU && mU && rU && !pU;
-        const peace  = iU && mU && !rU && !pU && !fingerUp(lm,4,3);
-        const folded = !iU && !mU && !rU && !pU;
-
-        const thumbUp    = folded && (lm[4].y < lm[9].y - 0.07);
-        const thumbLeft  = folded && (lm[4].x > lm[9].x + 0.07) && (Math.abs(lm[4].y - lm[9].y) < 0.07);
-        const thumbRight = folded && (lm[4].x < lm[9].x - 0.07) && (Math.abs(lm[4].y - lm[9].y) < 0.07);
-        const pinch = (Math.hypot(lm[8].x-lm[4].x, lm[8].y-lm[4].y) +
-                       Math.hypot(lm[12].x-lm[4].x, lm[12].y-lm[4].y) +
-                       Math.hypot(lm[16].x-lm[4].x, lm[16].y-lm[4].y)) / 3;
-
-        const wVelY = wrist.y - prevWY;
-        let rawG = null;
-
-        if (open && Math.abs(wVelY) > 0.045) {
-          const dir = wVelY < 0 ? 'SCROLL_UP' : 'SCROLL_DOWN';
-          scrollBuf.push(dir);
-          if (scrollBuf.length > 3) scrollBuf.shift();
-          if (scrollBuf.length === 3 && scrollBuf.every(d => d === dir)) rawG = dir;
-        } else {
-          scrollBuf = [];
-          if (peace)               rawG = 'RIGHT_CLICK';
-          else if (three && !open) rawG = 'SCREENSHOT';
-          else if (pinch < 0.04 && !open) rawG = 'PINCH_5';
-          else if (thumbUp)        rawG = 'THUMBS_UP';
-          else if (thumbLeft)      rawG = 'SWIPE_LEFT';
-          else if (thumbRight)     rawG = 'SWIPE_RIGHT';
-        }
-
-        // 2-frame confirmation
-        if (rawG) {
-          if (rawG === pendingG) {
-            if (++pendingGC >= CONFIRM_FRAMES) { fireGesture(rawG); pendingG = null; pendingGC = 0; }
-          } else { pendingG = rawG; pendingGC = 1; }
-        } else {
-          if (pendingGC > 0) pendingGC--; else pendingG = null;
-        }
-
-        // ── 1€ SMOOTH + DWELL LOCK ──
-        const fxv = fX.filter(targetX);
-        const fyv = fY.filter(targetY);
-        const drift = Math.hypot(fxv - anchorX, fyv - anchorY);
-
-        if (locked) {
-          cursorX = anchorX; cursorY = anchorY;
-          hoverF++;
-          if (drift > BREAKAWAY) {
-            locked = false; hoverF = 0;
-            mainArea.classList.remove('click-flash', 'dbl-flash');
-            airCursor.style.transform = `translate(-50%,-50%) scale(1)`;
-            airCursor.classList.remove('clicking');
-            fX.reset(fxv); fY.reset(fyv);
-            gestureCd = 20;
-          }
-        } else {
-          cursorX = fxv; cursorY = fyv;
-          if (drift < LOCK_TOL) {
-            if (++hoverF > 5) { locked = true; anchorX = cursorX; anchorY = cursorY; }
-          } else {
-            hoverF = 0; anchorX = cursorX; anchorY = cursorY;
-            airCursor.style.transform = `translate(-50%,-50%) scale(1)`;
-          }
-        }
-
-        // ── CLICK FIRE ──
-        if (locked) {
-          if (hoverF === HOVER_SINGLE) {
-            wsSend('GEST:CLICK');
-            alert2('SINGLE CLICK');
-            mainArea.classList.add('click-flash');
-            airCursor.classList.add('clicking');
-          } else if (hoverF === HOVER_DOUBLE) {
-            wsSend('GEST:DOUBLE_CLICK');
-            alert2('DOUBLE CLICK');
-            mainArea.classList.replace('click-flash', 'dbl-flash');
-            locked = false; hoverF = 0;
-            gestureCd = GESTURE_CD.DOUBLE_CLICK;
-          } else if (hoverF < HOVER_SINGLE) {
-            const s = 1 - (hoverF / HOVER_SINGLE) * 0.5;
-            airCursor.style.transform = `translate(-50%,-50%) scale(${s})`;
-          } else if (hoverF < HOVER_DOUBLE) {
-            const s = 0.5 - ((hoverF - HOVER_SINGLE) / (HOVER_DOUBLE - HOVER_SINGLE)) * 0.3;
-            airCursor.style.transform = `translate(-50%,-50%) scale(${s})`;
-          }
-        }
-      }
-
-      prevTX = targetX; prevTY = targetY; prevWY = wrist.y;
-
-      airCursor.style.left = `${cursorX * 100}%`;
-      airCursor.style.top  = `${cursorY * 100}%`;
-      sendPos(cursorX, cursorY);
+      wsSend(`${cursorX},${cursorY}`);
     }
   }
   requestAnimationFrame(loop);
 }
 
-boot();
+init();
 </script>
+
 </body>
 </html>
