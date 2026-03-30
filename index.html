@@ -2,54 +2,81 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AeroOS | Anti-Stacking V6.7</title>
+    <title>AeroOS | Anti-Stacking V6.8</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         :root {
-            --bg-deep: #020617; var(--glass-bg): rgba(255, 255, 255, 0.03);
-            --glass-border: rgba(255, 255, 255, 0.08); --accent: #38bdf8;
-            --accent-glow: rgba(56, 189, 248, 0.3); --text-main: #f8fafc; --text-muted: #64748b;
+            --bg-deep: #020617;
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.3);
+            --text-main: #f8fafc;
+            --text-muted: #64748b;
         }
-        
-        body { background: radial-gradient(circle at top right, #0f172a, var(--bg-deep)); color: var(--text-main); font-family: -apple-system, sans-serif; margin: 0; height: 100vh; overflow: hidden; touch-action: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; transition: background 0.3s; }
-        
+
+        body {
+            background: radial-gradient(circle at top right, #0f172a, var(--bg-deep));
+            color: var(--text-main);
+            font-family: -apple-system, sans-serif;
+            margin: 0; height: 100vh; overflow: hidden; touch-action: none;
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 20px; transition: background 0.3s;
+        }
         body.flash-mode { background: #ffffff; }
-        body.flash-mode .control-hub { background: rgba(10, 15, 30, 0.9); border: 1px solid rgba(0,0,0,0.5); box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+        body.flash-mode .control-hub { background: rgba(10,15,30,0.9); border: 1px solid rgba(0,0,0,0.5); box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
         body.flash-mode #trackingContainer { background: #020617; border-color: rgba(255,255,255,0.2); }
 
-        #trackingContainer { 
-            position: relative; width: 92vw; max-width: 800px; aspect-ratio: 16 / 9; 
+        #trackingContainer {
+            position: relative; width: 92vw; max-width: 800px; aspect-ratio: 16 / 9;
             background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.0) 100%);
-            border: 1px solid var(--glass-border); border-radius: 24px; 
+            border: 1px solid var(--glass-border); border-radius: 24px;
             box-shadow: inset 0 0 40px rgba(0,0,0,0.5); overflow: hidden;
             transition: border-color 0.2s, box-shadow 0.2s, background 0.3s;
         }
-        .pad-grid { position: absolute; width: 100%; height: 100%; opacity: 0.15; background-image: radial-gradient(var(--text-muted) 1px, transparent 1px); background-size: 24px 24px; }
-        
-        #trackingContainer.clicking { border-color: var(--accent); box-shadow: inset 0 0 60px var(--accent-glow); background: rgba(56, 189, 248, 0.1); }
-        #trackingContainer.double-clicking { border-color: #fff; box-shadow: inset 0 0 80px #fff; background: rgba(255, 255, 255, 0.2); }
-        
-        #airCursor { position: absolute; width: 32px; height: 32px; border: 2px solid var(--accent); border-radius: 50%; background: rgba(56, 189, 248, 0.1); backdrop-filter: blur(4px); transform: translate(-50%, -50%); pointer-events: none; display: flex; justify-content: center; align-items: center; transition: border-color 0.2s, background 0.2s; }
+        .pad-grid {
+            position: absolute; width: 100%; height: 100%; opacity: 0.15;
+            background-image: radial-gradient(var(--text-muted) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        #trackingContainer.clicking { border-color: var(--accent); box-shadow: inset 0 0 60px var(--accent-glow); background: rgba(56,189,248,0.1); }
+        #trackingContainer.double-clicking { border-color: #fff; box-shadow: inset 0 0 80px #fff; background: rgba(255,255,255,0.2); }
+
+        #airCursor {
+            position: absolute; width: 32px; height: 32px;
+            border: 2px solid var(--accent); border-radius: 50%;
+            background: rgba(56,189,248,0.1); backdrop-filter: blur(4px);
+            transform: translate(-50%, -50%); pointer-events: none;
+            display: flex; justify-content: center; align-items: center;
+            transition: border-color 0.2s, background 0.2s;
+        }
         #airCursor::after { content: ''; width: 6px; height: 6px; background: inherit; border-radius: 50%; }
 
-        .control-hub { width: 92vw; max-width: 800px; padding: 15px 20px; background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid var(--glass-border); border-radius: 20px; display: flex; flex-direction: column; gap: 15px; box-sizing: border-box; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5); transition: background 0.3s; }
-        
+        .control-hub {
+            width: 92vw; max-width: 800px; padding: 15px 20px;
+            background: rgba(255,255,255,0.03); backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border); border-radius: 20px;
+            display: flex; flex-direction: column; gap: 15px;
+            box-sizing: border-box; box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+            transition: background 0.3s;
+        }
         label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; display: block; }
-        
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
         .pill-btn { padding: 12px 10px; border-radius: 12px; border: 1px solid transparent; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.3s; text-align: center; }
         .btn-sys { background: var(--text-main); color: var(--bg-deep); }
         .btn-sys.active { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent-glow); }
-        
         .btn-flash { background: transparent; color: var(--text-muted); border: 1px solid var(--glass-border); }
         .btn-flash.active { background: #fff; color: #000; box-shadow: 0 0 20px rgba(255,255,255,0.6); }
-        
+
         input[type="range"] { -webkit-appearance: none; width: 100%; background: transparent; }
         input[type="range"]::-webkit-slider-runnable-track { height: 4px; background: rgba(255,255,255,0.1); border-radius: 10px; }
         input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: var(--accent); margin-top: -7px; box-shadow: 0 0 10px var(--accent-glow); }
 
-        #statusTerminal { padding: 12px; background: rgba(0,0,0,0.6); border: 1px solid var(--glass-border); border-radius: 12px; font-family: monospace; font-size: 13px; color: var(--accent); text-align: center; letter-spacing: 1px; transition: all 0.2s; }
-
+        #statusTerminal {
+            padding: 12px; background: rgba(0,0,0,0.6);
+            border: 1px solid var(--glass-border); border-radius: 12px;
+            font-family: monospace; font-size: 13px; color: var(--accent);
+            text-align: center; letter-spacing: 1px; transition: all 0.2s;
+        }
         video { display: none; }
     </style>
 </head>
@@ -60,7 +87,10 @@
     <div class="control-hub">
         <div id="statusTerminal">[ SYSTEM STANDBY ]</div>
         <div>
-            <label style="display: flex; justify-content: space-between;"><span>Kinetic Speed</span><span id="sensReadout" style="color: var(--accent);">1.5x</span></label>
+            <label style="display:flex;justify-content:space-between;">
+                <span>Kinetic Speed</span>
+                <span id="sensReadout" style="color:var(--accent);">1.5x</span>
+            </label>
             <input type="range" id="sensSlider" min="10" max="40" value="15">
         </div>
         <div class="btn-grid">
@@ -74,84 +104,170 @@
     <script type="module">
         import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.mjs";
 
-        const NGROK_URL = "vigorously-heterochthonous-mitch.ngrok-free.dev";
-        const socket = new WebSocket(`wss://${NGROK_URL}`);
+        // ─────────────────────────────────────────────
+        // 1€ FILTER  — industry-standard pointer smoother
+        // Low jitter at rest, responsive at speed.
+        // ─────────────────────────────────────────────
+        class OneEuroFilter {
+            constructor(minCutoff = 1.5, beta = 0.4, dCutoff = 1.0) {
+                this.minCutoff = minCutoff;
+                this.beta      = beta;
+                this.dCutoff   = dCutoff;
+                this._x  = null;
+                this._dx = 0;
+            }
+            _alpha(cutoff) {
+                const r = 2 * Math.PI * cutoff / 30; // assumes ~30fps
+                return r / (r + 1);
+            }
+            filter(value) {
+                if (this._x === null) { this._x = value; return value; }
+                // Derivative low-pass
+                const rawDx = value - this._x;
+                this._dx   += (rawDx - this._dx) * this._alpha(this.dCutoff);
+                // Adaptive cutoff
+                const cutoff = this.minCutoff + this.beta * Math.abs(this._dx);
+                this._x    += (value - this._x) * this._alpha(cutoff);
+                return this._x;
+            }
+            reset(value) { this._x = value; this._dx = 0; }
+        }
 
-        const airCursor = document.getElementById("airCursor");
-        const trackingPad = document.getElementById("trackingContainer");
-        const sensSlider = document.getElementById("sensSlider");
-        const sensReadout = document.getElementById("sensReadout");
-        const sysToggle = document.getElementById("sysToggle");
-        const flashToggle = document.getElementById("flashToggle");
-        const statusTerminal = document.getElementById("statusTerminal");
-        const video = document.getElementById("webcam");
+        const filterX = new OneEuroFilter(1.5, 0.4);
+        const filterY = new OneEuroFilter(1.5, 0.4);
 
+        // ─────────────────────────────────────────────
+        // CONSTANTS
+        // ─────────────────────────────────────────────
+        const HOVER_SINGLE       = 25;   // ~0.8 s for single-click
+        const HOVER_DOUBLE       = 40;   // ~1.3 s for double-click
+        const LOCK_TOLERANCE     = 0.02;
+        const BREAKAWAY_FORCE    = 0.06;
+        const SEND_THRESHOLD     = 0.002; // WS delta gate — skip trivial moves
+
+        // Per-gesture cooldown frames (30 fps baseline)
+        const GESTURE_COOLDOWN = {
+            SCROLL_UP:    18,  // 0.6 s — scrolls feel natural rapid-fire
+            SCROLL_DOWN:  18,
+            RIGHT_CLICK:  35,
+            SCREENSHOT:   50,
+            PINCH_5:      40,
+            THUMBS_UP:    40,
+            SWIPE_LEFT:   35,
+            SWIPE_RIGHT:  35,
+            CLICK:        50,
+            DOUBLE_CLICK: 50,
+        };
+
+        // Scroll needs 3 frames of consistent direction to fire
+        const SCROLL_CONFIRM_FRAMES = 3;
+
+        // ─────────────────────────────────────────────
+        // STATE
+        // ─────────────────────────────────────────────
         let smoothX = 0.5, smoothY = 0.5;
         let prevTargetX = 0.5, prevTargetY = 0.5;
-        const PREDICTION_FACTOR = 1.2; 
-
-        // --- SIGNIFICANTLY SLOWER TIMERS ---
-        let hoverFrames = 0;
-        const HOVER_SINGLE = 30; // 1.0 full second for Single Click
-        const HOVER_DOUBLE = 45; // 1.5 seconds for Double Click
-        
         let dwellAnchorX = 0.5, dwellAnchorY = 0.5;
         let isCursorLocked = false;
-        
-        const LOCK_TOLERANCE = 0.02;  
-        const BREAKAWAY_FORCE = 0.06; 
+        let hoverFrames    = 0;
+        let gestureCooldown = 0;
 
-        let prevWristY = 0;
-        
-        // --- THE NEW GLOBAL COOLDOWN SYSTEM ---
-        let gestureCooldown = 0; 
-        
-        let statusTimer = 0; 
+        // 2-frame gesture confirmation buffer — faster AND fewer false positives
+        let pendingGesture      = null;
+        let pendingGestureCount = 0;
+        const CONFIRM_FRAMES    = 2;
+
+        // Scroll direction buffer
+        let scrollBuffer = [];
+
+        let prevWristY   = 0;
+        let statusTimer  = 0;
+        let lastSentX    = -1, lastSentY = -1;
         let handLandmarker = null;
+
+        // ─────────────────────────────────────────────
+        // DOM
+        // ─────────────────────────────────────────────
+        const airCursor     = document.getElementById("airCursor");
+        const trackingPad   = document.getElementById("trackingContainer");
+        const sensSlider    = document.getElementById("sensSlider");
+        const sensReadout   = document.getElementById("sensReadout");
+        const sysToggle     = document.getElementById("sysToggle");
+        const flashToggle   = document.getElementById("flashToggle");
+        const statusTerminal= document.getElementById("statusTerminal");
+        const video         = document.getElementById("webcam");
+
+        const NGROK_URL = "vigorously-heterochthonous-mitch.ngrok-free.dev";
+        const socket    = new WebSocket(`wss://${NGROK_URL}`);
 
         sensSlider.oninput = () => { sensReadout.innerText = (sensSlider.value / 10).toFixed(1) + "x"; };
 
         let isActive = true;
-        sysToggle.onclick = () => { isActive = !isActive; sysToggle.innerText = isActive ? "System Active" : "System Offline"; sysToggle.classList.toggle("active", isActive); };
+        sysToggle.onclick = () => {
+            isActive = !isActive;
+            sysToggle.innerText = isActive ? "System Active" : "System Offline";
+            sysToggle.classList.toggle("active", isActive);
+        };
 
         let isFlashActive = false;
         flashToggle.onclick = () => {
             isFlashActive = !isFlashActive;
             flashToggle.classList.toggle("active", isFlashActive);
             document.body.classList.toggle("flash-mode", isFlashActive);
-            if (isFlashActive) sendCommandAlert("ILLUMINATION ACTIVE");
-            else sendCommandAlert("ILLUMINATION OFFLINE");
+            sendCommandAlert(isFlashActive ? "ILLUMINATION ACTIVE" : "ILLUMINATION OFFLINE");
         };
 
+        // ─────────────────────────────────────────────
+        // HUD
+        // ─────────────────────────────────────────────
         function sendCommandAlert(msg) {
             statusTerminal.innerText = `[ CMD: ${msg} ]`;
-            statusTerminal.style.background = "rgba(56, 189, 248, 0.3)";
+            statusTerminal.style.background = "rgba(56,189,248,0.3)";
             statusTerminal.style.color = "#fff";
-            statusTimer = 60; 
+            statusTimer = 60;
         }
 
-        function isFingerUp(landmarks, tipObj, dipObj) { return landmarks[tipObj].y < landmarks[dipObj].y; }
+        function resetHUD() {
+            statusTerminal.innerText = `[ TRACKING ACTIVE ]`;
+            statusTerminal.style.background = "rgba(0,0,0,0.6)";
+            statusTerminal.style.color = "var(--accent)";
+        }
 
+        // ─────────────────────────────────────────────
+        // HELPERS
+        // ─────────────────────────────────────────────
+        function fingerUp(lm, tip, dip) { return lm[tip].y < lm[dip].y; }
+
+        // Fire confirmed gesture — sends WS + HUD + sets cooldown
+        function fireGesture(name) {
+            if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:${name}`);
+            sendCommandAlert(name.replace(/_/g, " "));
+            gestureCooldown = GESTURE_COOLDOWN[name] ?? 40;
+            scrollBuffer = [];
+        }
+
+        // ─────────────────────────────────────────────
+        // BOOT
+        // ─────────────────────────────────────────────
         async function bootSystem() {
             try {
                 sendCommandAlert("BOOTING NPU...");
-                const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm");
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
+                );
                 handLandmarker = await HandLandmarker.createFromOptions(vision, {
-                    baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`, delegate: "CPU" },
+                    baseOptions: {
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                        delegate: "CPU"
+                    },
                     runningMode: "VIDEO", numHands: 1
                 });
 
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-    video: { 
-        facingMode: "user",
-        width: { ideal: 640 },
-        height: { ideal: 480 },
-        frameRate: { ideal: 60, max: 120 } 
-    } 
-});
-
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 60, max: 120 } }
+                });
                 video.srcObject = stream;
-                await video.play(); 
+                await video.play();
                 sendCommandAlert("TRACKING ACTIVE");
                 renderLoop();
             } catch (err) {
@@ -159,83 +275,106 @@
             }
         }
 
+        // ─────────────────────────────────────────────
+        // MAIN LOOP
+        // ─────────────────────────────────────────────
         async function renderLoop() {
             if (isActive && video.readyState >= 2 && handLandmarker) {
                 const results = await handLandmarker.detectForVideo(video, performance.now());
-                
-                if (statusTimer > 0) {
-                    statusTimer--;
-                    if (statusTimer === 0) {
-                        statusTerminal.innerText = `[ TRACKING ACTIVE ]`;
-                        statusTerminal.style.background = "rgba(0,0,0,0.6)";
-                        statusTerminal.style.color = "var(--accent)";
-                    }
-                }
 
-                if (results.landmarks && results.landmarks[0]) {
-                    const lm = results.landmarks[0];
-                    const tip = lm[8], wrist = lm[0];
+                // HUD timer tick
+                if (statusTimer > 0 && --statusTimer === 0) resetHUD();
 
-                    const rawX = 1 - tip.x, rawY = tip.y;
-                    const sens = sensSlider.value / 10; 
+                if (results.landmarks?.[0]) {
+                    const lm    = results.landmarks[0];
+                    const tip   = lm[8];
+                    const wrist = lm[0];
+
+                    // ── Raw → Scaled target ──
+                    const sens    = sensSlider.value / 10;
+                    const rawX    = 1 - tip.x, rawY = tip.y;
                     const targetX = Math.max(0.02, Math.min(0.98, (rawX - 0.5) * sens + 0.5));
                     const targetY = Math.max(0.02, Math.min(0.98, (rawY - 0.5) * sens + 0.5));
 
-                    const velX = targetX - prevTargetX, velY = targetY - prevTargetY;
-                    let predictedX = Math.max(0.02, Math.min(0.98, targetX + (velX * PREDICTION_FACTOR)));
-                    let predictedY = Math.max(0.02, Math.min(0.98, targetY + (velY * PREDICTION_FACTOR)));
-
-                    // --- GLOBAL COOLDOWN ENGINE ---
                     if (gestureCooldown > 0) {
+                        // ── COOLDOWN: smooth-only mode ──
                         gestureCooldown--;
-                        
-                        // Force normal fluid movement, skip all locking and gestures
-                        const distanceMoved = Math.hypot(velX, velY);
-                        let dynamicLerp = distanceMoved < 0.002 ? 0.0 : (distanceMoved > 0.05 ? 0.7 : 0.35);
-                        smoothX += (predictedX - smoothX) * dynamicLerp;
-                        smoothY += (predictedY - smoothY) * dynamicLerp;
-                        
-                        // Clear locks
+                        smoothX = filterX.filter(targetX);
+                        smoothY = filterY.filter(targetY);
                         isCursorLocked = false;
-                        hoverFrames = 0;
-                        dwellAnchorX = smoothX;
-                        dwellAnchorY = smoothY;
+                        hoverFrames    = 0;
+                        dwellAnchorX   = smoothX;
+                        dwellAnchorY   = smoothY;
+                        pendingGesture      = null;
+                        pendingGestureCount = 0;
                         airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
                         trackingPad.classList.remove("clicking", "double-clicking");
                         airCursor.style.borderColor = "var(--accent)";
-                    } 
-                    else {
-                        // --- 1. HAND SIGN DETECTIONS (Only if no cooldown) ---
-                        const indexUp = isFingerUp(lm, 8, 6), middleUp = isFingerUp(lm, 12, 10), ringUp = isFingerUp(lm, 16, 14), pinkyUp = isFingerUp(lm, 20, 18);
-                        const openHand = indexUp && middleUp && ringUp && pinkyUp;
-                        const threeFingers = indexUp && middleUp && ringUp && !pinkyUp;
-                        const peaceSign = indexUp && middleUp && !ringUp && !pinkyUp && !isFingerUp(lm, 4, 3);
-                        const fingersFolded = !indexUp && !middleUp && !ringUp && !pinkyUp;
-                        
-                        const thumbUp = fingersFolded && (lm[4].y < lm[9].y - 0.05);
-                        const thumbLeft = fingersFolded && (lm[4].x > lm[9].x + 0.05) && Math.abs(lm[4].y - lm[9].y) < 0.1; 
-                        const thumbRight = fingersFolded && (lm[4].x < lm[9].x - 0.05) && Math.abs(lm[4].y - lm[9].y) < 0.1; 
-                        const avgTipToThumbDist = (Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y) + Math.hypot(lm[12].x - lm[4].x, lm[12].y - lm[4].y) + Math.hypot(lm[16].x - lm[4].x, lm[16].y - lm[4].y)) / 3;
+                    } else {
+                        // ── GESTURE DETECTION ──
+                        const iU = fingerUp(lm,8,6),  mU = fingerUp(lm,12,10),
+                              rU = fingerUp(lm,16,14), pU = fingerUp(lm,20,18);
+                        const openHand     = iU && mU && rU && pU;
+                        const threeFingers = iU && mU && rU && !pU;
+                        const peaceSign    = iU && mU && !rU && !pU && !fingerUp(lm,4,3);
+                        const folded       = !iU && !mU && !rU && !pU;
 
-                        let triggeredGesture = null;
-                        const wristVelocityY = wrist.y - prevWristY;
-                        
-                        if (openHand && Math.abs(wristVelocityY) > 0.04) triggeredGesture = wristVelocityY < 0 ? "SCROLL_UP" : "SCROLL_DOWN";
-                        else if (peaceSign) triggeredGesture = "RIGHT_CLICK";
-                        else if (threeFingers && !openHand) triggeredGesture = "SCREENSHOT";
-                        else if (avgTipToThumbDist < 0.04 && !openHand) triggeredGesture = "PINCH_5";
-                        else if (thumbUp) triggeredGesture = "THUMBS_UP";
-                        else if (thumbLeft) triggeredGesture = "SWIPE_LEFT";
-                        else if (thumbRight) triggeredGesture = "SWIPE_RIGHT";
+                        // Thumb detection — stricter positional guards
+                        const thumbUp    = folded && (lm[4].y < lm[9].y - 0.07);
+                        const thumbLeft  = folded && (lm[4].x > lm[9].x + 0.07) && (Math.abs(lm[4].y - lm[9].y) < 0.07);
+                        const thumbRight = folded && (lm[4].x < lm[9].x - 0.07) && (Math.abs(lm[4].y - lm[9].y) < 0.07);
 
-                        if (triggeredGesture && socket.readyState === WebSocket.OPEN) {
-                            socket.send(`GEST:${triggeredGesture}`);
-                            sendCommandAlert(triggeredGesture);
-                            gestureCooldown = 60; // 2.0 Second Global Gap after a hand gesture
+                        const pinchDist = (
+                            Math.hypot(lm[8].x  - lm[4].x, lm[8].y  - lm[4].y) +
+                            Math.hypot(lm[12].x - lm[4].x, lm[12].y - lm[4].y) +
+                            Math.hypot(lm[16].x - lm[4].x, lm[16].y - lm[4].y)
+                        ) / 3;
+
+                        const wristVelY = wrist.y - prevWristY;
+
+                        // ── Build raw gesture candidate ──
+                        let rawGesture = null;
+                        if (openHand && Math.abs(wristVelY) > 0.045) {
+                            // Scroll: buffer direction for consistency check
+                            const dir = wristVelY < 0 ? "SCROLL_UP" : "SCROLL_DOWN";
+                            scrollBuffer.push(dir);
+                            if (scrollBuffer.length > SCROLL_CONFIRM_FRAMES) scrollBuffer.shift();
+                            const allSame = scrollBuffer.length === SCROLL_CONFIRM_FRAMES &&
+                                            scrollBuffer.every(d => d === dir);
+                            if (allSame) rawGesture = dir;
+                        } else {
+                            scrollBuffer = [];
+                            if (peaceSign)                        rawGesture = "RIGHT_CLICK";
+                            else if (threeFingers && !openHand)   rawGesture = "SCREENSHOT";
+                            else if (pinchDist < 0.04 && !openHand) rawGesture = "PINCH_5";
+                            else if (thumbUp)                     rawGesture = "THUMBS_UP";
+                            else if (thumbLeft)                   rawGesture = "SWIPE_LEFT";
+                            else if (thumbRight)                  rawGesture = "SWIPE_RIGHT";
                         }
 
-                        // --- 2. DWELL LOCK & TRACKING ---
-                        const drift = Math.hypot(predictedX - dwellAnchorX, predictedY - dwellAnchorY);
+                        // ── 2-frame confirmation buffer ──
+                        if (rawGesture) {
+                            if (rawGesture === pendingGesture) {
+                                pendingGestureCount++;
+                                if (pendingGestureCount >= CONFIRM_FRAMES) {
+                                    fireGesture(rawGesture);
+                                    pendingGesture      = null;
+                                    pendingGestureCount = 0;
+                                }
+                            } else {
+                                pendingGesture      = rawGesture;
+                                pendingGestureCount = 1;
+                            }
+                        } else {
+                            // Decay pending — but don't reset on first miss to allow 1-frame gaps
+                            if (pendingGestureCount > 0) pendingGestureCount--;
+                            else pendingGesture = null;
+                        }
+
+                        // ── CURSOR SMOOTHING (1€ filter) ──
+                        const filteredX = filterX.filter(targetX);
+                        const filteredY = filterY.filter(targetY);
+                        const drift = Math.hypot(filteredX - dwellAnchorX, filteredY - dwellAnchorY);
 
                         if (isCursorLocked) {
                             smoothX = dwellAnchorX;
@@ -244,76 +383,77 @@
 
                             if (drift > BREAKAWAY_FORCE) {
                                 isCursorLocked = false;
-                                hoverFrames = 0;
+                                hoverFrames    = 0;
                                 trackingPad.classList.remove("clicking", "double-clicking");
                                 airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
                                 airCursor.style.borderColor = "var(--accent)";
-                                gestureCooldown = 30; // 1.0 Second gap after breaking a lock
+                                filterX.reset(filteredX);
+                                filterY.reset(filteredY);
+                                gestureCooldown = 20; // short gap after breakaway
                             }
                         } else {
-                            const distanceMoved = Math.hypot(velX, velY);
-                            let dynamicLerp = distanceMoved < 0.002 ? 0.0 : (distanceMoved > 0.05 ? 0.7 : 0.35);
-                            smoothX += (predictedX - smoothX) * dynamicLerp;
-                            smoothY += (predictedY - smoothY) * dynamicLerp;
-                            
+                            smoothX = filteredX;
+                            smoothY = filteredY;
+
                             if (drift < LOCK_TOLERANCE) {
                                 hoverFrames++;
-                                if (hoverFrames > 5) { 
+                                if (hoverFrames > 5) {
                                     isCursorLocked = true;
-                                    dwellAnchorX = smoothX;
-                                    dwellAnchorY = smoothY;
+                                    dwellAnchorX   = smoothX;
+                                    dwellAnchorY   = smoothY;
                                 }
                             } else {
-                                hoverFrames = 0;
+                                hoverFrames  = 0;
                                 dwellAnchorX = smoothX;
                                 dwellAnchorY = smoothY;
                                 airCursor.style.transform = `translate(-50%, -50%) scale(1)`;
                             }
                         }
-                        
-                        // --- 3. CLICK FIRING ---
+
+                        // ── DWELL CLICK FIRING ──
                         if (isCursorLocked) {
                             if (hoverFrames === HOVER_SINGLE) {
-                                if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:CLICK`);
+                                if (socket.readyState === WebSocket.OPEN) socket.send("GEST:CLICK");
                                 sendCommandAlert("SINGLE CLICK");
                                 trackingPad.classList.add("clicking");
-                                // We don't gap here yet, because they might be waiting for double click
-                            } 
-                            else if (hoverFrames === HOVER_DOUBLE) {
-                                if (socket.readyState === WebSocket.OPEN) socket.send(`GEST:DOUBLE_CLICK`);
+                            } else if (hoverFrames === HOVER_DOUBLE) {
+                                if (socket.readyState === WebSocket.OPEN) socket.send("GEST:DOUBLE_CLICK");
                                 sendCommandAlert("DOUBLE CLICK");
                                 trackingPad.classList.replace("clicking", "double-clicking");
                                 airCursor.style.borderColor = "#fff";
-                                
-                                isCursorLocked = false; 
-                                hoverFrames = 0;
-                                gestureCooldown = 50; // 1.6 Second gap after a double click
-                            } 
-                            else if (hoverFrames < HOVER_SINGLE) {
-                                const scale = 1 - (hoverFrames / HOVER_SINGLE) * 0.5;
-                                airCursor.style.transform = `translate(-50%, -50%) scale(${scale})`;
-                            } 
-                            else if (hoverFrames < HOVER_DOUBLE) {
-                                const scale = 0.5 - ((hoverFrames - HOVER_SINGLE) / (HOVER_DOUBLE - HOVER_SINGLE)) * 0.3;
-                                airCursor.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                                isCursorLocked = false;
+                                hoverFrames    = 0;
+                                gestureCooldown = GESTURE_COOLDOWN.DOUBLE_CLICK;
+                            } else if (hoverFrames < HOVER_SINGLE) {
+                                const s = 1 - (hoverFrames / HOVER_SINGLE) * 0.5;
+                                airCursor.style.transform = `translate(-50%, -50%) scale(${s})`;
+                            } else if (hoverFrames < HOVER_DOUBLE) {
+                                const s = 0.5 - ((hoverFrames - HOVER_SINGLE) / (HOVER_DOUBLE - HOVER_SINGLE)) * 0.3;
+                                airCursor.style.transform = `translate(-50%, -50%) scale(${s})`;
                             }
                         }
-                    } // End of Global Cooldown Block
-                    
-                    prevTargetX = targetX; prevTargetY = targetY;
-                    prevWristY = wrist.y;
+                    } // end cooldown block
 
+                    prevTargetX = targetX;
+                    prevTargetY = targetY;
+                    prevWristY  = wrist.y;
+
+                    // ── RENDER CURSOR ──
                     airCursor.style.left = `${smoothX * 100}%`;
-                    airCursor.style.top = `${smoothY * 100}%`;
+                    airCursor.style.top  = `${smoothY * 100}%`;
 
-                    if (socket.readyState === WebSocket.OPEN) {
-                        socket.send(`${smoothX.toFixed(4)},${smoothY.toFixed(4)}`);
+                    // ── WS DELTA GATE — only send if cursor moved meaningfully ──
+                    if (socket.readyState === WebSocket.OPEN &&
+                        Math.hypot(smoothX - lastSentX, smoothY - lastSentY) > SEND_THRESHOLD) {
+                        socket.send(`${smoothX.toFixed(3)},${smoothY.toFixed(3)}`);
+                        lastSentX = smoothX;
+                        lastSentY = smoothY;
                     }
                 }
             }
             requestAnimationFrame(renderLoop);
         }
-        
+
         bootSystem();
     </script>
 </body>
