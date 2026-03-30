@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>AeroOS · V7.2</title>
+<title>AeroOS</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -411,7 +411,7 @@ video { display: none; }
 
   <!-- ① TOP BAR — always at top -->
   <div id="topbar">
-    <div id="logo">AEROS<span class="ver"> · V7.2</span></div>
+    <div id="logo">AEROOS</div>
     <div class="topbar-right">
       <button id="camBtn" onclick="cycleCamera()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -555,9 +555,10 @@ const fY = new OneEuroFilter(1.0, 0.6);
 const NGROK         = "vigorously-heterochthonous-mitch.ngrok-free.dev";
 const EDGE          = 0.12;   // camera dead-zone remap
 const PINCH_THRESH  = 0.07;   // normalized dist for index/middle pinch
-const SCROLL_THRESH = 0.018;  // LM9 Y delta to fire a scroll tick
-const SWIPE_THRESH  = 0.055;  // LM9 Y delta to fire a 3-finger swipe
+const SCROLL_THRESH = 0.035;  // filtered delta to fire a scroll tick (wider deadzone = no jitter)
+const SWIPE_THRESH  = 0.055;  // filtered Y delta to fire a 3-finger swipe
 const SEND_THRESH   = 0.0018; // WS position delta gate
+const BASE_SPEED    = 3.0;    // global relative-move multiplier (fix 3)
 
 // ═══════════════════════════════════════════════
 // STATE
@@ -575,10 +576,15 @@ let cameras=[], camIdx=0;
 // Air gesture state
 let isPinched      = false;   // index pinch currently held (LEFT_DOWN)
 let rightClickCd   = 0;       // cooldown frames for right click
-let scrollRefY     = null;    // reference Y for scroll mode
-let swipeRefY      = null;    // reference Y for 3-finger swipe
+let scrollRefY     = null;    // filtered Y anchor for scroll mode
+let scrollRefX     = null;    // filtered X anchor for horizontal scroll (fix 4)
+let swipeRefY      = null;    // filtered Y anchor for 3-finger swipe
 let swipeFired     = false;   // prevent double-fire per swipe gesture
 let airLabelTimer  = null;
+
+// Relative tracking anchors — always updated, even during clutch (fix 2)
+let lastHandX      = null;    // previous frame filtered X (smoothHandX)
+let lastHandY      = null;    // previous frame filtered Y (smoothHandY)
 
 // ═══════════════════════════════════════════════
 // DOM
@@ -741,53 +747,65 @@ function setMainState(state) {
 }
 
 // ═══════════════════════════════════════════════
-// THE NEW aiLoop() — LM9-driven, no dwell timers
+// aiLoop() — LM9 relative tracking, Vision-Pro-style clutch
+// Fixes: 2 (relative+clutch anchor), 3 (speed), 4 (H-scroll), 5 (filtered scroll)
 // ═══════════════════════════════════════════════
 function aiLoop(lm) {
 
-  // ── 0. FIST / CLUTCH DETECTION (highest priority) ──
-  // All four fingertips (8,12,16,20) below their base knuckles (5,9,13,17)
+  // ── STEP A: Always filter LM9 first, every frame ──
+  // The 1€-filtered values are our "smoothHandX/Y" — used for BOTH
+  // relative movement AND scroll deltas, never raw camera data.
+  const rawX = remapEdge(1 - lm[9].x);
+  const rawY = remapEdge(lm[9].y);
+  const smoothHandX = fX.filter(rawX);  // filtered LM9 X in [0,1]
+  const smoothHandY = fY.filter(rawY);  // filtered LM9 Y in [0,1]
+
+  // ── STEP B: Compute relative delta from previous filtered position ──
+  // On the very first frame, prime the anchors to avoid a jump.
+  let dx = 0, dy = 0;
+  if (lastHandX !== null) {
+    dx = smoothHandX - lastHandX;
+    dy = smoothHandY - lastHandY;
+  }
+
+  // ── STEP C: FIST / CLUTCH (highest priority) ──
+  // CRITICAL: We update lastHandX/Y BEFORE returning so that when the
+  // hand opens, the next frame's delta is ~0 → cursor stays put exactly.
   const isFist =
     lm[8].y  > lm[5].y  &&
     lm[12].y > lm[9].y  &&
     lm[16].y > lm[13].y &&
     lm[20].y > lm[17].y;
 
-  if (isFist) {
-    // Release any held left-down
-    if (isPinched) {
-      wsSend('GEST:LEFT_UP');
-      isPinched = false;
-    }
-    // Clear scroll/swipe refs
-    scrollRefY = null;
-    swipeRefY  = null; swipeFired = false;
+  // Always advance the anchor — clutch or not
+  lastHandX = smoothHandX;
+  lastHandY = smoothHandY;
 
-    // Freeze cursor, show clutch visual
+  if (isFist) {
+    // Safety: release pinch if hand closes mid-drag
+    if (isPinched) { wsSend('GEST:LEFT_UP'); isPinched = false; }
+    // Reset scroll/swipe refs
+    scrollRefX = null; scrollRefY = null;
+    swipeRefY  = null; swipeFired = false;
+    // Freeze cursor visually — do NOT update curX/curY
     setCursorState('clutch');
     setMainState('clutch');
     alert2('✊ CLUTCH · CURSOR FROZEN', 'state-clutch');
-    // Don't move cursor, don't send position
-    return;
+    return; // ← cursor position untouched, anchor updated above ✓
   }
 
-  // ── 1. MOVE CURSOR via Landmark 9 + 1€ filter ──
-  const sens = sensSlider.value / 10;
-  const rawX = remapEdge(1 - lm[9].x);
-  const rawY = remapEdge(lm[9].y);
-  const tX   = Math.max(0, Math.min(1, edgeAccel((rawX-0.5)*sens + 0.5)));
-  const tY   = Math.max(0, Math.min(1, edgeAccel((rawY-0.5)*sens + 0.5)));
-  curX = fX.filter(tX);
-  curY = fY.filter(tY);
+  // ── STEP D: Apply relative delta to cursor with speed multiplier ──
+  // Fix 3: multiply by (sens * BASE_SPEED) so slider covers full screen range
+  const sens = (sensSlider.value / 10) * BASE_SPEED;
+  curX = Math.max(0, Math.min(1, curX + dx * sens));
+  curY = Math.max(0, Math.min(1, curY + dy * sens));
 
-  // ── 2. FINGER STATE FLAGS ──
+  // ── STEP E: Finger state flags ──
   const iU = fingerUp(lm,8,6),  mU = fingerUp(lm,12,10);
   const rU = fingerUp(lm,16,14), pU = fingerUp(lm,20,18);
 
-  // ── 3. INDEX PINCH → LEFT_DOWN / LEFT_UP ──
-  const indexDist   = dist2d(lm[8], lm[4]);
-  const indexPinch  = indexDist < PINCH_THRESH;
-
+  // ── STEP F: INDEX PINCH → LEFT_DOWN / LEFT_UP ──
+  const indexPinch = dist2d(lm[8], lm[4]) < PINCH_THRESH;
   if (indexPinch && !isPinched) {
     isPinched = true;
     wsSend('GEST:LEFT_DOWN');
@@ -799,81 +817,96 @@ function aiLoop(lm) {
     isPinched = false;
     wsSend('GEST:LEFT_UP');
     showAirLabel('LEFT UP');
-    setCursorState('');
-    setMainState('');
+    setCursorState(''); setMainState('');
     alert2('AIR TRACK · LM9 ACTIVE');
   }
 
-  // If pinching, skip scroll/swipe/right-click detection (clean exclusion)
+  // While pinching, skip all other gesture checks
   if (isPinched) {
-    sendPos(curX, curY, true);
     airCursor.style.left = `${curX*100}%`;
     airCursor.style.top  = `${curY*100}%`;
     airLabel.style.left  = `${curX*100}%`;
     airLabel.style.top   = `${curY*100}%`;
+    sendPos(curX, curY, true);
     return;
   }
 
-  // ── 4. MIDDLE PINCH → RIGHT_CLICK (with cooldown) ──
+  // ── STEP G: MIDDLE PINCH → RIGHT_CLICK ──
   if (rightClickCd > 0) rightClickCd--;
-  const middleDist  = dist2d(lm[12], lm[4]);
-  const middlePinch = middleDist < PINCH_THRESH;
-  if (middlePinch && rightClickCd===0) {
+  const middlePinch = dist2d(lm[12], lm[4]) < PINCH_THRESH;
+  if (middlePinch && rightClickCd === 0) {
     wsSend('GEST:RIGHT_CLICK');
     showAirLabel('RIGHT CLICK');
     setMainState('click');
-    setTimeout(()=>setMainState(''), 200);
+    setTimeout(() => setMainState(''), 200);
     alert2('✌ RIGHT CLICK', 'alert');
-    rightClickCd = 40; // ~1.3 sec guard
+    rightClickCd = 40;
   }
 
-  // ── 5. SCROLL MODE: index + middle up, ring + pinky down ──
+  // ── STEP H: SCROLL MODE — index+middle up, ring+pinky down ──
+  // Fix 4: axis-lock (compare |dy| vs |dx|, send whichever dominates)
+  // Fix 5: use smoothHandX/Y (filtered) — never raw lm[9]
   const isScrollMode = iU && mU && !rU && !pU && !middlePinch;
   if (isScrollMode) {
     setCursorState('scroll');
     setMainState('scroll');
-    if (scrollRefY === null) scrollRefY = lm[9].y;
-    const dy = lm[9].y - scrollRefY;
-    if (Math.abs(dy) > SCROLL_THRESH) {
-      const g = dy < 0 ? 'GEST:SCROLL_UP' : 'GEST:SCROLL_DOWN';
+    // Prime both axes together on entry
+    if (scrollRefY === null) { scrollRefY = smoothHandY; scrollRefX = smoothHandX; }
+
+    const sdY = smoothHandY - scrollRefY;
+    const sdX = smoothHandX - scrollRefX;
+
+    if (Math.max(Math.abs(sdY), Math.abs(sdX)) > SCROLL_THRESH) {
+      let g, label;
+      if (Math.abs(sdY) >= Math.abs(sdX)) {
+        // Vertical dominates
+        g     = sdY < 0 ? 'GEST:SCROLL_UP'   : 'GEST:SCROLL_DOWN';
+        label = sdY < 0 ? '⬆ SCROLL UP'      : '⬇ SCROLL DOWN';
+      } else {
+        // Horizontal dominates
+        g     = sdX < 0 ? 'GEST:SCROLL_LEFT'  : 'GEST:SCROLL_RIGHT';
+        label = sdX < 0 ? '◀ SCROLL LEFT'     : '▶ SCROLL RIGHT';
+      }
       wsSend(g);
-      showAirLabel(dy < 0 ? '⬆ SCROLL' : '⬇ SCROLL');
-      statusText.textContent = dy < 0 ? '✌ SCROLL UP' : '✌ SCROLL DOWN';
+      showAirLabel(label);
+      statusText.textContent = label;
       statusBar.className = 'state-scroll';
-      scrollRefY = lm[9].y; // reset ref after each tick
+      // Reset both axes after each tick
+      scrollRefY = smoothHandY;
+      scrollRefX = smoothHandX;
     }
   } else {
     scrollRefY = null;
+    scrollRefX = null;
   }
 
-  // ── 6. THREE-FINGER SWIPE: index + middle + ring up, pinky down ──
-  // Once per swipe (swipeFired flag prevents re-trigger during hold)
+  // ── STEP I: THREE-FINGER SWIPE — index+middle+ring up, pinky down ──
   const isThreeMode = iU && mU && rU && !pU;
   if (isThreeMode) {
     setCursorState('three');
     setMainState('three');
-    if (swipeRefY === null) { swipeRefY = lm[9].y; swipeFired = false; }
-    const dy = lm[9].y - swipeRefY;
-    if (!swipeFired && Math.abs(dy) > SWIPE_THRESH) {
-      const g = dy < 0 ? 'GEST:TASK_VIEW' : 'GEST:SHOW_DESKTOP';
+    if (swipeRefY === null) { swipeRefY = smoothHandY; swipeFired = false; }
+    const sdY = smoothHandY - swipeRefY;
+    if (!swipeFired && Math.abs(sdY) > SWIPE_THRESH) {
+      const g     = sdY < 0 ? 'GEST:TASK_VIEW'   : 'GEST:SHOW_DESKTOP';
+      const label = sdY < 0 ? '⬆ TASK VIEW'      : '⬇ SHOW DESKTOP';
       wsSend(g);
-      const label = dy < 0 ? '⬆ TASK VIEW' : '⬇ SHOW DESKTOP';
       showAirLabel(label);
       alert2(label, 'state-three');
-      swipeFired = true; // lock until hand leaves 3-finger pose
+      swipeFired = true;
     }
   } else {
     swipeRefY  = null;
     swipeFired = false;
   }
 
-  // ── 7. DEFAULT HOVER (no special gesture active) ──
+  // ── STEP J: DEFAULT HOVER ──
   if (!isScrollMode && !isThreeMode && !middlePinch) {
     setCursorState('');
     if (statusTimer === 0) setMainState('');
   }
 
-  // ── 8. RENDER ──
+  // ── STEP K: RENDER ──
   airCursor.style.left = `${curX*100}%`;
   airCursor.style.top  = `${curY*100}%`;
   airLabel.style.left  = `${curX*100}%`;
