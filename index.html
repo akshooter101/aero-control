@@ -556,19 +556,20 @@ class OneEuroFilter {
 }
 
 // Applied to Landmark 9 exclusively for cursor movement
-const fX = new OneEuroFilter(1.0, 0.6);
-const fY = new OneEuroFilter(1.0, 0.6);
+// Fix 5: minCutoff 0.1 = extreme low-speed stabilization; beta 0.8 = responsive at speed
+const fX = new OneEuroFilter(0.1, 0.8);
+const fY = new OneEuroFilter(0.1, 0.8);
 
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
 const NGROK         = "vigorously-heterochthonous-mitch.ngrok-free.dev";
 const EDGE          = 0.12;   // camera dead-zone remap
-const PINCH_THRESH  = 0.07;   // normalized dist for index/middle pinch
+const PINCH_THRESH  = 0.10;   // Fix 4: wider threshold for mobile wide-FOV cameras
 const SCROLL_THRESH = 0.035;  // filtered delta to fire a scroll tick (wider deadzone = no jitter)
 const SWIPE_THRESH  = 0.055;  // filtered Y delta to fire a 3-finger swipe
 const SEND_THRESH   = 0.0018; // WS position delta gate
-const BASE_SPEED    = 3.0;    // global relative-move multiplier (fix 3)
+const BASE_SPEED    = 2.4;    // Fix 5: reduced speed to complement sniper-mode filter
 
 // ═══════════════════════════════════════════════
 // STATE
@@ -1007,12 +1008,26 @@ touchSurface.addEventListener('touchstart', e=>{
   const n=tpState.size, ts=tpArr();
   if (n===1) {
     tpMode='move';
-    tpDragTimer=setTimeout(()=>{
-      if (tpState.size===1&&ts.length&&Math.hypot(ts[0].curX-ts[0].origX,ts[0].curY-ts[0].origY)<14) {
-        tpDragActive=true; wsSend('GEST:DRAG_START'); sendPos(curX,curY,true);
-        alert2('DRAG MODE · RELEASE TO DROP'); mainArea.classList.add('drag-active'); dragBadge.classList.add('show');
-      }
-    },600);
+    // Fix 3: Tap-and-a-half drag (Windows Precision standard)
+    // If a second finger-down arrives within 400ms of the last tap, start drag immediately
+    // without waiting for the 600ms long-press timer.
+    if (Date.now() - tpLastTap < 400) {
+      tpLastTap = 0;
+      tpDragActive = true;
+      wsSend('GEST:DRAG_START');
+      sendPos(curX, curY, true);
+      alert2('DRAG MODE · RELEASE TO DROP');
+      mainArea.classList.add('drag-active');
+      dragBadge.classList.add('show');
+    } else {
+      // Fallback: 600ms long-press drag trigger
+      tpDragTimer = setTimeout(()=>{
+        if (tpState.size===1&&ts.length&&Math.hypot(ts[0].curX-ts[0].origX,ts[0].curY-ts[0].origY)<14) {
+          tpDragActive=true; wsSend('GEST:DRAG_START'); sendPos(curX,curY,true);
+          alert2('DRAG MODE · RELEASE TO DROP'); mainArea.classList.add('drag-active'); dragBadge.classList.add('show');
+        }
+      },600);
+    }
   } else if (n===2) {
     clearTimeout(tpDragTimer); tpMode='two';
     tpPinchDist=Math.hypot(ts[0].curX-ts[1].curX,ts[0].curY-ts[1].curY);
