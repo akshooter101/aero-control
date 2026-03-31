@@ -562,7 +562,7 @@ const fY = new OneEuroFilter(1.0, 0.6);
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const NGROK         = "vigorously-heterochthonous-mitch.ngrok-free.dev";
+const NGROK         = "vigorously-heterochthonous-mitch.ngrok-free.app";
 const EDGE          = 0.12;   // camera dead-zone remap
 const PINCH_THRESH  = 0.07;   // normalized dist for index/middle pinch
 const SCROLL_THRESH = 0.035;  // filtered delta to fire a scroll tick (wider deadzone = no jitter)
@@ -596,6 +596,7 @@ let airLabelTimer  = null;
 let clutchCooldown = 0;       // post-clutch lockout frames (fix 4)
 let activeGesture  = 'none';  // gesture state machine lock (fix 7)
 let poseHoldFrames = 0;       // stability counter (fix 7)
+let airLastTap     = 0;       // timestamp of last fast tap for JS double-click (fix 3)
 
 // Relative tracking anchors — always updated, even during clutch (fix 2)
 let lastHandX      = null;
@@ -858,7 +859,7 @@ function aiLoop(lm) {
     setMainState('click');
   } else if (indexPinch && isPinched && !isDragging) {
     // Pinch is being held — check if we've crossed the drag threshold
-    if (Date.now() - pinchStartTime >= 250) {
+    if (Date.now() - pinchStartTime >= 350) {
       isDragging = true;
       wsSend('GEST:LEFT_DOWN');
       showAirLabel('DRAG');
@@ -873,10 +874,21 @@ function aiLoop(lm) {
       alert2('AIR TRACK · LM9 ACTIVE');
       isDragging = false;
     } else {
-      // Fast tap (< 250ms) → send CLICK so Windows can chain double-clicks natively
-      wsSend('GEST:CLICK');
-      showAirLabel('CLICK');
-      setMainState('click');
+      // Fast tap (< 250ms) → JS double-click detection (fix 3)
+      // Windows double-click requires cursor within 4px radius — we can't guarantee
+      // that with hand drift, so we detect the second tap here and send DOUBLE_CLICK.
+      const now = Date.now();
+      if (now - airLastTap < 400) {
+        wsSend('GEST:DOUBLE_CLICK');
+        showAirLabel('DOUBLE CLICK');
+        setMainState('dbl');
+        airLastTap = 0;
+      } else {
+        wsSend('GEST:CLICK');
+        showAirLabel('CLICK');
+        setMainState('click');
+        airLastTap = now;
+      }
       setTimeout(() => setMainState(''), 180);
       alert2('CLICK');
     }
