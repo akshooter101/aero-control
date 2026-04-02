@@ -800,17 +800,16 @@ function aiLoop(lm) {
     dy = smoothHandY - lastHandY;
   }
 
-  // ── C: FIST / CLUTCH ──
-  // Bug 2 fix: use wrist-distance comparisons instead of Y-axis screen height.
-  // dist2d(fingertip, wrist) < dist2d(base knuckle, wrist) is true for ANY wrist
-  // rotation including 90° sideways, because it measures radial fold, not screen height.
+    // ── C: FIST / CLUTCH ──
+  // Flawless Joint Math: A finger is curled if its Tip is closer to its Base than its PIP joint is.
+  // This works at any camera angle, rotation, or depth.
   const isFist =
-    dist2d(lm[8],  lm[0]) < dist2d(lm[5],  lm[0]) &&
-    dist2d(lm[12], lm[0]) < dist2d(lm[9],  lm[0]) &&
-    dist2d(lm[16], lm[0]) < dist2d(lm[13], lm[0]) &&
-    dist2d(lm[20], lm[0]) < dist2d(lm[17], lm[0]);
+    dist2d(lm[8], lm[5])   < dist2d(lm[6], lm[5]) &&
+    dist2d(lm[12], lm[9])  < dist2d(lm[10], lm[9]) &&
+    dist2d(lm[16], lm[13]) < dist2d(lm[14], lm[13]) &&
+    dist2d(lm[20], lm[17]) < dist2d(lm[18], lm[17]);
 
-  // Always advance the anchor before any early return
+  // Always advance the anchor before any early return so dx/dy stays at 0 when un-paused
   lastHandX = smoothHandX;
   lastHandY = smoothHandY;
 
@@ -820,16 +819,23 @@ function aiLoop(lm) {
     scrollRefX = null; scrollRefY = null;
     swipeRefY  = null; swipeFired = false;
     activeGesture = 'none'; poseHoldFrames = 0;
-    clutchCooldown = 15;
+    
+    clutchCooldown = 15; // Set the 15-frame stabilization timer
+    
     setCursorState('clutch');
     setMainState('clutch');
     alert2('✊ CLUTCH · CURSOR FROZEN', 'state-clutch');
     return;
   }
 
-  if (clutchCooldown > 0) clutchCooldown--;
+  // CRITICAL FIX: If the stabilization timer is running, block EVERYTHING. 
+  // This completely absorbs the mechanical wobble of unfurling your hand.
+  if (clutchCooldown > 0) {
+    clutchCooldown--;
+    return; 
+  }
 
-  // ── D: Apply relative movement (never locked, even during cooldown) ──
+  // ── D: Apply relative movement ──
   const sens = (sensSlider.value / 10) * BASE_SPEED;
   curX = Math.max(0, Math.min(1, curX + dx * sens));
   curY = Math.max(0, Math.min(1, curY + dy * sens));
@@ -840,7 +846,6 @@ function aiLoop(lm) {
   airLabel.style.top   = `${curY*100}%`;
   sendPos(curX, curY);
 
-  if (clutchCooldown > 0) return;
 
   // ── E: Finger state flags ──
   const iU = fingerUp(lm,8,6),  mU = fingerUp(lm,12,10);
