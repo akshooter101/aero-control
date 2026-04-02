@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>AeroOS</title>
+<title>Aero Control</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -88,13 +88,13 @@ body::after {
 
 /* The flex-grow region — keeps pad vertically centered in remaining space */
 #padZone {
-  flex: 1 1 0;              /* grow to fill all leftover vertical space */
-  min-height: 0;            /* critical: lets flex children shrink below content */
+  flex: 1 1 0;
+  min-height: 0;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;  /* vertically center the 16:9 pad */
+  justify-content: center;
   padding: 4px 0;
 }
 
@@ -108,7 +108,6 @@ body::after {
   letter-spacing: 0.12em; color: var(--cyan); text-transform: uppercase;
   display: flex; align-items: center; gap: 6px;
 }
-#logo .ver { color: var(--muted2); font-weight: 400; }
 .topbar-right { display: flex; align-items: center; gap: 7px; }
 
 /* WS LED */
@@ -410,7 +409,7 @@ video { display: none; }
 <body>
 <div id="app">
 
-  <!-- ① TOP BAR — always at top -->
+  <!-- ① TOP BAR -->
   <div id="topbar">
     <div id="logo">AEROOS</div>
     <div class="topbar-right">
@@ -448,7 +447,7 @@ video { display: none; }
     </button>
   </div>
 
-  <!-- ③ PAD ZONE — flex-grow, centers mainArea vertically -->
+  <!-- ③ PAD ZONE -->
   <div id="padZone">
     <div id="mainArea">
 
@@ -501,7 +500,7 @@ video { display: none; }
     <div id="statusText">SYSTEM STANDBY</div>
   </div>
 
-  <!-- ⑤ CONTROLS — naturally at bottom -->
+  <!-- ⑤ CONTROLS -->
   <div id="controls">
     <div class="ctrl-row">
       <span class="ctrl-label">Speed</span>
@@ -555,8 +554,8 @@ class OneEuroFilter {
   reset(v) { this._x=v; this._dx=0; }
 }
 
-// Applied to Landmark 9 exclusively for cursor movement
-// Fix 5: minCutoff 0.1 = extreme low-speed stabilization; beta 0.8 = responsive at speed
+// Applied to Landmark 9 exclusively for cursor movement.
+// minCutoff 0.1 = extreme low-speed stabilization; beta 0.8 = responsive at speed.
 const fX = new OneEuroFilter(0.1, 0.8);
 const fY = new OneEuroFilter(0.1, 0.8);
 
@@ -565,11 +564,11 @@ const fY = new OneEuroFilter(0.1, 0.8);
 // ═══════════════════════════════════════════════
 const NGROK         = "vigorously-heterochthonous-mitch.ngrok-free.dev";
 const EDGE          = 0.12;   // camera dead-zone remap
-const PINCH_THRESH  = 0.10;   // Fix 4: wider threshold for mobile wide-FOV cameras
-const SCROLL_THRESH = 0.035;  // filtered delta to fire a scroll tick (wider deadzone = no jitter)
+const PINCH_THRESH  = 0.10;   // wider threshold for mobile wide-FOV cameras
+const SCROLL_THRESH = 0.035;  // filtered delta deadzone — prevents jitter
 const SWIPE_THRESH  = 0.055;  // filtered Y delta to fire a 3-finger swipe
 const SEND_THRESH   = 0.0018; // WS position delta gate
-const BASE_SPEED    = 2.4;    // Fix 5: reduced speed to complement sniper-mode filter
+const BASE_SPEED    = 2.4;    // global relative-move multiplier
 
 // ═══════════════════════════════════════════════
 // STATE
@@ -585,23 +584,24 @@ let statusTimer=0;
 let cameras=[], camIdx=0;
 
 // Air gesture state
-let isPinched      = false;   // index pinch currently held (LEFT_DOWN)
-let pinchStartTime = 0;       // timestamp of pinch start (fix 3: timer)
-let isDragging     = false;   // true when long-pinch fired LEFT_DOWN (fix 3)
-let rightClickCd   = 0;       // cooldown frames for right click
-let scrollRefY     = null;    // filtered Y anchor for scroll mode
-let scrollRefX     = null;    // filtered X anchor for horizontal scroll
-let swipeRefY      = null;    // filtered Y anchor for 3-finger swipe
-let swipeFired     = false;   // prevent double-fire per swipe gesture
+let isPinched      = false;
+let pinchStartTime = 0;
+let isDragging     = false;
+let rightClickCd   = 0;
+let scrollRefY     = null;
+let scrollRefX     = null;
+let swipeRefY      = null;
+let swipeFired     = false;
 let airLabelTimer  = null;
-let clutchCooldown = 0;       // post-clutch lockout frames (fix 4)
-let activeGesture  = 'none';  // gesture state machine lock (fix 7)
-let poseHoldFrames = 0;       // stability counter (fix 7)
-let airLastTap     = 0;       // timestamp of last fast tap for JS double-click (fix 3)
+let clutchCooldown = 0;
+let activeGesture  = 'none';
+let poseHoldFrames = 0;
+let airLastTap     = 0;
 
-// Relative tracking anchors — always updated, even during clutch (fix 2)
-let lastHandX      = null;
-let lastHandY      = null;
+// Relative tracking anchors.
+// Bug 1 fix: null means "no previous frame" — primed fresh when hand re-enters frame.
+let lastHandX = null;
+let lastHandY = null;
 
 // ═══════════════════════════════════════════════
 // DOM
@@ -683,7 +683,7 @@ window.setMode = m => {
 };
 
 // ═══════════════════════════════════════════════
-// SYSTEM / FLASH
+// SYSTEM / FLASH / KEYBOARD
 // ═══════════════════════════════════════════════
 window.toggleSystem = () => {
   isActive = !isActive;
@@ -696,7 +696,6 @@ window.toggleSystem = () => {
 window.toggleFlash = async () => {
   isFlash = !isFlash;
   document.getElementById('btnFlash').classList.toggle('on', isFlash);
-  // Try hardware LED torch first (back camera); fall back to screen-light
   let usedTorch = false;
   if (video.srcObject) {
     try {
@@ -707,9 +706,7 @@ window.toggleFlash = async () => {
       }
     } catch(e) { /* torch unavailable — fall through */ }
   }
-  if (!usedTorch) {
-    document.body.classList.toggle('flash-mode', isFlash);
-  }
+  if (!usedTorch) document.body.classList.toggle('flash-mode', isFlash);
   alert2(isFlash ? (usedTorch ? 'TORCH ON' : 'ILLUMINATION ON') : (usedTorch ? 'TORCH OFF' : 'ILLUMINATION OFF'));
 };
 
@@ -761,9 +758,12 @@ async function startStream(deviceId=null, facingMode='user') {
 // HELPERS
 // ═══════════════════════════════════════════════
 const remapEdge = v => Math.max(0, Math.min(1, (v-EDGE)/(1-2*EDGE)));
-const edgeAccel = v => { const d=v-0.5; return Math.max(0, Math.min(1, 0.5+d*(1+Math.abs(d)*0.95))); };
 const fingerUp  = (lm,tip,dip) => lm[tip].y < lm[dip].y;
-const dist2d    = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
+
+// Bug 4 fix: account for 4:3 camera aspect ratio — X coords are physically wider than Y.
+// Multiplying dX by (4/3) makes the euclidean distance correct in physical space,
+// so pinches work regardless of whether the hand is horizontal or vertical.
+const dist2d = (a,b) => Math.hypot((a.x-b.x) * (4/3), a.y-b.y);
 
 function sendPos(x, y, force=false) {
   if (force || Math.hypot(x-lastSX, y-lastSY) > SEND_THRESH) {
@@ -783,101 +783,93 @@ function setMainState(state) {
 }
 
 // ═══════════════════════════════════════════════
-// aiLoop() — all QA fixes applied
+// aiLoop() — V8.0, all 4 JS bugs fixed
 // ═══════════════════════════════════════════════
 function aiLoop(lm) {
 
-  // ── A: Filter LM9 every frame (source of truth for movement + scroll deltas) ──
+  // ── A: Filter LM9 every frame ──
   const rawX      = remapEdge(1 - lm[9].x);
   const rawY      = remapEdge(lm[9].y);
   const smoothHandX = fX.filter(rawX);
   const smoothHandY = fY.filter(rawY);
 
-  // ── B: Relative delta (first frame primes the anchor) ──
+  // ── B: Relative delta — primed to zero on first frame after hand re-entry ──
   let dx = 0, dy = 0;
   if (lastHandX !== null) {
     dx = smoothHandX - lastHandX;
     dy = smoothHandY - lastHandY;
   }
 
-  // ── C: FIST / CLUTCH — always update anchor BEFORE return ──
+  // ── C: FIST / CLUTCH ──
+  // Bug 2 fix: use wrist-distance comparisons instead of Y-axis screen height.
+  // dist2d(fingertip, wrist) < dist2d(base knuckle, wrist) is true for ANY wrist
+  // rotation including 90° sideways, because it measures radial fold, not screen height.
   const isFist =
-    lm[8].y  > lm[5].y  &&
-    lm[12].y > lm[9].y  &&
-    lm[16].y > lm[13].y &&
-    lm[20].y > lm[17].y;
+    dist2d(lm[8],  lm[0]) < dist2d(lm[5],  lm[0]) &&
+    dist2d(lm[12], lm[0]) < dist2d(lm[9],  lm[0]) &&
+    dist2d(lm[16], lm[0]) < dist2d(lm[13], lm[0]) &&
+    dist2d(lm[20], lm[0]) < dist2d(lm[17], lm[0]);
 
-  lastHandX = smoothHandX;   // anchor advances regardless of clutch state
+  // Always advance the anchor before any early return
+  lastHandX = smoothHandX;
   lastHandY = smoothHandY;
 
   if (isFist) {
-    // Release any active drag safely
     if (isDragging) { wsSend('GEST:LEFT_UP'); isDragging = false; }
     isPinched = false;
-    // Reset all gesture state
     scrollRefX = null; scrollRefY = null;
     swipeRefY  = null; swipeFired = false;
     activeGesture = 'none'; poseHoldFrames = 0;
-    // Fix 4: arm the post-clutch cooldown
     clutchCooldown = 15;
     setCursorState('clutch');
     setMainState('clutch');
     alert2('✊ CLUTCH · CURSOR FROZEN', 'state-clutch');
-    return; // cursor position untouched ✓
+    return;
   }
 
-  // Fix 4: decrement post-clutch lockout each open-hand frame
   if (clutchCooldown > 0) clutchCooldown--;
 
-  // ── D: Apply relative movement (cursor moves even during cooldown) ──
+  // ── D: Apply relative movement (never locked, even during cooldown) ──
   const sens = (sensSlider.value / 10) * BASE_SPEED;
   curX = Math.max(0, Math.min(1, curX + dx * sens));
   curY = Math.max(0, Math.min(1, curY + dy * sens));
 
-  // ── Render cursor position immediately (movement is never locked) ──
   airCursor.style.left = `${curX*100}%`;
   airCursor.style.top  = `${curY*100}%`;
   airLabel.style.left  = `${curX*100}%`;
   airLabel.style.top   = `${curY*100}%`;
   sendPos(curX, curY);
 
-  // ── ALL GESTURE TRIGGERS ARE GATED BELOW ──
-  if (clutchCooldown > 0) return;  // Fix 4: block all gesture triggers post-clutch
+  if (clutchCooldown > 0) return;
 
   // ── E: Finger state flags ──
   const iU = fingerUp(lm,8,6),  mU = fingerUp(lm,12,10);
   const rU = fingerUp(lm,16,14), pU = fingerUp(lm,20,18);
 
-  // ── F: INDEX PINCH — pinch timer (Fix 3) ──
+  // ── F: INDEX PINCH → click / drag ──
   const indexPinch = dist2d(lm[8], lm[4]) < PINCH_THRESH;
 
   if (indexPinch && !isPinched) {
-    // Pinch just started — record time, don't fire anything yet
     isPinched      = true;
     pinchStartTime = Date.now();
     isDragging     = false;
     setCursorState('down');
     setMainState('click');
   } else if (indexPinch && isPinched && !isDragging) {
-    // Pinch is being held — check if we've crossed the drag threshold
-    if (Date.now() - pinchStartTime >= 350) {
+    if (Date.now() - pinchStartTime >= 250) {
       isDragging = true;
       wsSend('GEST:LEFT_DOWN');
       showAirLabel('DRAG');
       alert2('☝ DRAG ACTIVE', 'state-down');
     }
   } else if (!indexPinch && isPinched) {
-    // Pinch released
     if (isDragging) {
-      // Long hold → was a drag, send LEFT_UP
       wsSend('GEST:LEFT_UP');
       showAirLabel('DROP');
       alert2('AIR TRACK · LM9 ACTIVE');
       isDragging = false;
     } else {
-      // Fast tap (< 250ms) → JS double-click detection (fix 3)
-      // Windows double-click requires cursor within 4px radius — we can't guarantee
-      // that with hand drift, so we detect the second tap here and send DOUBLE_CLICK.
+      // Fast tap — JS double-click detection
       const now = Date.now();
       if (now - airLastTap < 400) {
         wsSend('GEST:DOUBLE_CLICK');
@@ -898,12 +890,16 @@ function aiLoop(lm) {
     if (!isDragging) setMainState('');
   }
 
-  // While pinching, skip all other gestures
   if (isPinched) return;
 
   // ── G: MIDDLE PINCH → RIGHT_CLICK ──
-  if (rightClickCd > 0) rightClickCd--;
   const middlePinch = dist2d(lm[12], lm[4]) < PINCH_THRESH;
+
+  // Bug 3 fix: only decrement the cooldown when the pinch is OPEN.
+  // If middlePinch stays held, rightClickCd stays frozen at its current value,
+  // preventing re-fire every 40 frames while the pinch is sustained.
+  if (!middlePinch && rightClickCd > 0) rightClickCd--;
+
   if (middlePinch && rightClickCd === 0) {
     wsSend('GEST:RIGHT_CLICK');
     showAirLabel('RIGHT CLICK');
@@ -913,21 +909,19 @@ function aiLoop(lm) {
     rightClickCd = 40;
   }
 
-  // ── H+I: SCROLL / THREE-FINGER — strict state machine (Fix 7) ──
+  // ── H+I: SCROLL / THREE-FINGER — strict state machine ──
   const rawScroll = iU && mU && !rU && !pU && !middlePinch;
   const rawThree  = iU && mU && rU && !pU;
 
   if (rawScroll || rawThree) {
     poseHoldFrames++;
   } else {
-    // Pose broken — full reset
     poseHoldFrames = 0;
     activeGesture  = 'none';
     scrollRefX = null; scrollRefY = null;
     swipeRefY  = null; swipeFired = false;
   }
 
-  // Lock into a gesture only after 5 stable frames (~80ms); never switch mid-gesture
   if (poseHoldFrames > 4 && activeGesture === 'none') {
     activeGesture = rawScroll ? 'scroll' : 'three';
   }
@@ -943,11 +937,11 @@ function aiLoop(lm) {
     if (Math.max(Math.abs(sdY), Math.abs(sdX)) > SCROLL_THRESH) {
       let g, label;
       if (Math.abs(sdY) >= Math.abs(sdX)) {
-        // Fix 2 — Natural scroll: hand moves UP (negative dy) → page scrolls UP → SCROLL_DOWN
+        // Natural scroll: hand up → content up → SCROLL_DOWN payload
         g     = sdY < 0 ? 'GEST:SCROLL_DOWN'  : 'GEST:SCROLL_UP';
         label = sdY < 0 ? '⬆ SCROLL UP'       : '⬇ SCROLL DOWN';
       } else {
-        // Fix 2 — Natural scroll: hand moves LEFT (negative dx) → SCROLL_RIGHT
+        // Natural scroll: hand left → SCROLL_RIGHT payload
         g     = sdX < 0 ? 'GEST:SCROLL_RIGHT'  : 'GEST:SCROLL_LEFT';
         label = sdX < 0 ? '▶ SCROLL RIGHT'     : '◀ SCROLL LEFT';
       }
@@ -973,14 +967,13 @@ function aiLoop(lm) {
       swipeFired = true;
     }
   } else if (!middlePinch) {
-    // Default hover — no active gesture
     setCursorState('');
     if (statusTimer === 0) setMainState('');
   }
 }
 
 // ═══════════════════════════════════════════════
-// TOUCHPAD GESTURE ENGINE  (unchanged from V7.1)
+// TOUCHPAD GESTURE ENGINE
 // ═══════════════════════════════════════════════
 const tpState = new Map();
 let tpMode='idle', tpLastTap=0;
@@ -1008,9 +1001,7 @@ touchSurface.addEventListener('touchstart', e=>{
   const n=tpState.size, ts=tpArr();
   if (n===1) {
     tpMode='move';
-    // Fix 3: Tap-and-a-half drag (Windows Precision standard)
-    // If a second finger-down arrives within 400ms of the last tap, start drag immediately
-    // without waiting for the 600ms long-press timer.
+    // Tap-and-a-half drag: if a second touch arrives within 400ms of a tap, start drag instantly
     if (Date.now() - tpLastTap < 400) {
       tpLastTap = 0;
       tpDragActive = true;
@@ -1063,11 +1054,11 @@ touchSurface.addEventListener('touchmove', e=>{
       const g=dd>0?'ZOOM_IN':'ZOOM_OUT'; wsSend(`GEST:${g}`);
       showBadge(dd>0?'🔍 ZOOM IN':'🔍 ZOOM OUT'); tpZoomThr=7; tpScrollRefY=midY; tpScrollRefX=midX;
     } else if (Math.abs(sdY)>6&&tpScrollThr===0&&Math.abs(dd)<5) {
-      // Fix 2: natural scroll — finger up = content up = SCROLL_DOWN payload
+      // Natural scroll: finger moves up → content scrolls up → SCROLL_DOWN payload
       const g=sdY<0?'SCROLL_DOWN':'SCROLL_UP'; wsSend(`GEST:${g}`);
       showBadge(sdY<0?'⬆ SCROLL UP':'⬇ SCROLL DOWN'); tpScrollThr=4; tpScrollRefY=midY;
     } else if (Math.abs(sdX)>10&&tpScrollThr===0&&Math.abs(dd)<5) {
-      // Fix 2: natural scroll — finger left = content left = SCROLL_RIGHT payload
+      // Natural scroll: finger moves left → SCROLL_RIGHT payload
       const g=sdX<0?'SCROLL_RIGHT':'SCROLL_LEFT'; wsSend(`GEST:${g}`);
       showBadge(sdX<0?'▶ SCROLL RIGHT':'◀ SCROLL LEFT'); tpScrollThr=6; tpScrollRefX=midX;
     }
@@ -1169,7 +1160,14 @@ async function loop() {
   if (currentMode==='air' && isActive && video.readyState>=2 && handLandmarker) {
     const res=await handLandmarker.detectForVideo(video, performance.now());
     if (statusTimer>0 && --statusTimer===0) resetHUD();
-    if (res.landmarks?.[0]) aiLoop(res.landmarks[0]);
+    if (res.landmarks?.[0]) {
+      aiLoop(res.landmarks[0]);
+    } else {
+      // Bug 1 fix: hand left the frame — null the anchors so the first frame after
+      // re-entry primes a zero delta, preventing the teleport jump.
+      lastHandX = null;
+      lastHandY = null;
+    }
   } else {
     if (statusTimer>0 && --statusTimer===0) resetHUD();
   }
