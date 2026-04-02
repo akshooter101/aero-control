@@ -849,26 +849,17 @@ function aiLoop(lm) {
     dist2d(lm[16], lm[0]) < palmSize * FOLD_THRESH &&  // ring folded
     dist2d(lm[20], lm[0]) < palmSize * FOLD_THRESH;    // pinky folded
 
-  // ── D: CLUTCH STATE MACHINE with hysteresis ───────────────────────────────
-  //
-  // Hysteresis prevents flapping: clutch needs FIST_ENGAGE consecutive fist
-  // frames to lock, and FIST_RELEASE consecutive open frames to unlock.
-  // This absorbs depth-flicker and partial-fist noise.
-  //
+    // ── D: CLUTCH STATE MACHINE with hysteresis ───────────────────────────────
   if (isFistRaw) {
     fistFrames++;
     openFrames = 0;
 
     if (!clutchActive && fistFrames >= FIST_ENGAGE) {
-      // ── ENGAGE CLUTCH ──
       clutchActive   = true;
       clutchCooldown = 0;
 
-      // Safety: release any held button before freezing
       if (isDragging)  { wsSend('GEST:LEFT_UP'); isDragging = false; }
       isPinched = false;
-
-      // Reset gesture state machine
       scrollRefX = null; scrollRefY = null;
       swipeRefY  = null; swipeFired = false;
       activeGesture = 'none'; poseHoldFrames = 0;
@@ -882,26 +873,30 @@ function aiLoop(lm) {
     fistFrames = 0;
 
     if (clutchActive && openFrames >= FIST_RELEASE) {
-      // ── RELEASE CLUTCH → start cooldown ──
       clutchActive   = false;
       clutchCooldown = CLUTCH_COOL;
       openFrames     = 0;
-      // Cursor stays visually frozen; cooldown absorbs the unfurl wobble
     }
   }
 
-  // ── E: HARD FREEZE — clutch active or cooling down ────────────────────────
-  //
-  // Symptom 2 fix: cursor is frozen during BOTH states.
-  //   • During clutchActive: obvious — user asked for a freeze.
-  //   • During clutchCooldown: absorbs the ~10–15 frame "unfurl wobble" where
-  //     finger uncurling shifts LM9, producing non-zero dx/dy we don't want.
-  //     lastHandX/Y already drained those deltas above, so the first frame
-  //     after cooldown expires will have dx ≈ 0.
-  //
-  if (clutchActive || clutchCooldown > 0) {
-    if (clutchCooldown > 0) clutchCooldown--;
-    // Re-render cursor at its frozen position (no DOM mutation = no visual jump)
+  // ── E: HARD FREEZE & FILTER RESET ─────────────────────────────────────────
+  // CRITICAL FIX 1: Add `isFistRaw` to the block list. This pre-emptively freezes 
+  // the cursor instantly while you squeeze, preventing the "Squeeze Jump".
+  if (clutchActive || clutchCooldown > 0 || isFistRaw) {
+    
+    if (clutchCooldown > 0) {
+      clutchCooldown--;
+      
+      // CRITICAL FIX 2: The exact frame the cooldown ends, the unfurl is complete.
+      // We forcefully wipe the 1Euro filter's memory so it doesn't "whip" the cursor.
+      if (clutchCooldown === 0) {
+        fX.reset(rawX);
+        fY.reset(rawY);
+        lastHandX = rawX;
+        lastHandY = rawY;
+      }
+    }
+
     airCursor.style.left = `${curX*100}%`;
     airCursor.style.top  = `${curY*100}%`;
     airLabel.style.left  = `${curX*100}%`;
@@ -919,6 +914,7 @@ function aiLoop(lm) {
   airLabel.style.left  = `${curX*100}%`;
   airLabel.style.top   = `${curY*100}%`;
   sendPos(curX, curY);
+
 
   // ── G: Finger state flags ──────────────────────────────────────────────────
   const iU = fingerUp(lm,8,6),  mU = fingerUp(lm,12,10);
