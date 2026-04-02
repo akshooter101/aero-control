@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Aero Control</title>
+<title>AeroOS</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -562,13 +562,22 @@ const fY = new OneEuroFilter(0.1, 0.8);
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const NGROK         = "vigorously-heterochthonous-mitch.ngrok-free.dev";
+const NGROK         = "vigorously-heterochthonous-mitch.ngrok-free.app";
 const EDGE          = 0.12;   // camera dead-zone remap
 const PINCH_THRESH  = 0.10;   // wider threshold for mobile wide-FOV cameras
 const SCROLL_THRESH = 0.035;  // filtered delta deadzone — prevents jitter
 const SWIPE_THRESH  = 0.055;  // filtered Y delta to fire a 3-finger swipe
 const SEND_THRESH   = 0.0018; // WS position delta gate
 const BASE_SPEED    = 2.4;    // global relative-move multiplier
+
+// Clutch state-machine thresholds
+// FOLD_THRESH: fingertip-to-wrist / palmSize < this → finger is folded.
+//   palmSize = dist(wrist, middle-MCP) self-normalizes for camera depth.
+//   Extended tip ≈ 2.0×palm; folded tip ≈ 0.8–1.0×palm → 1.3 splits them cleanly.
+const FOLD_THRESH  = 1.3;
+const FIST_ENGAGE  = 4;   // consecutive fist frames to lock clutch
+const FIST_RELEASE = 3;   // consecutive open frames to release clutch
+const CLUTCH_COOL  = 12;  // cooldown frames after release (absorbs unfurl wobble)
 
 // ═══════════════════════════════════════════════
 // STATE
@@ -599,9 +608,14 @@ let poseHoldFrames = 0;
 let airLastTap     = 0;
 
 // Relative tracking anchors.
-// Bug 1 fix: null means "no previous frame" — primed fresh when hand re-enters frame.
+// null = "no previous frame" — primed fresh when hand re-enters frame.
 let lastHandX = null;
 let lastHandY = null;
+
+// Clutch state machine
+let clutchActive   = false; // hard lock: cursor completely frozen
+let fistFrames     = 0;     // consecutive frames isFistRaw was true
+let openFrames     = 0;     // consecutive frames isFistRaw was false
 
 // ═══════════════════════════════════════════════
 // DOM
@@ -783,59 +797,119 @@ function setMainState(state) {
 }
 
 // ═══════════════════════════════════════════════
-// aiLoop() — V8.0, all 4 JS bugs fixed
+// aiLoop() — V8.1 Clutch Redesign
+//
+// Three clutch fixes:
+//   Symptom 1 (Flaky Detection):  palm-ratio fist check (depth-invariant) +
+//                                  hysteresis counters (engage=4, release=3 frames)
+//   Symptom 2 (Teleportation):    1€ filters reset to null on hand exit so
+//                                  filter-lerp deltas never accumulate into curX/Y
+//   Symptom 3 (Unfurl Wobble):    cursor frozen during BOTH clutch AND cooldown;
+//                                  lastHandX/Y updates freely so the anchor drains
+//                                  the unfurl motion silently, giving zero delta
+//                                  on the first real tracking frame
 // ═══════════════════════════════════════════════
 function aiLoop(lm) {
 
-  // ── A: Filter LM9 every frame ──
+  // ── A: Filter LM9 every frame ─────────────────────────────────────────────
+  // This is the ONLY source of truth for both movement and scroll deltas.
   const rawX      = remapEdge(1 - lm[9].x);
   const rawY      = remapEdge(lm[9].y);
   const smoothHandX = fX.filter(rawX);
   const smoothHandY = fY.filter(rawY);
 
-  // ── B: Relative delta — primed to zero on first frame after hand re-entry ──
+  // ── B: Relative delta ─────────────────────────────────────────────────────
+  // lastHandX is null on the very first frame after any hand absence,
+  // so dx/dy = 0 on re-entry — no cursor jump no matter where the hand appears.
   let dx = 0, dy = 0;
   if (lastHandX !== null) {
     dx = smoothHandX - lastHandX;
     dy = smoothHandY - lastHandY;
   }
-
-    // ── C: FIST / CLUTCH ──
-  // Flawless Joint Math: A finger is curled if its Tip is closer to its Base than its PIP joint is.
-  // This works at any camera angle, rotation, or depth.
-  const isFist =
-    dist2d(lm[8], lm[5])   < dist2d(lm[6], lm[5]) &&
-    dist2d(lm[12], lm[9])  < dist2d(lm[10], lm[9]) &&
-    dist2d(lm[16], lm[13]) < dist2d(lm[14], lm[13]) &&
-    dist2d(lm[20], lm[17]) < dist2d(lm[18], lm[17]);
-
-  // Always advance the anchor before any early return so dx/dy stays at 0 when un-paused
+  // Advance anchor unconditionally — this includes clutch and cooldown frames,
+  // which is intentional: the anchor silently absorbs motion we don't want to
+  // act on, so the next "live" frame inherits a zero delta.
   lastHandX = smoothHandX;
   lastHandY = smoothHandY;
 
-  if (isFist) {
-    if (isDragging) { wsSend('GEST:LEFT_UP'); isDragging = false; }
-    isPinched = false;
-    scrollRefX = null; scrollRefY = null;
-    swipeRefY  = null; swipeFired = false;
-    activeGesture = 'none'; poseHoldFrames = 0;
-    
-    clutchCooldown = 15; // Set the 15-frame stabilization timer
-    
-    setCursorState('clutch');
-    setMainState('clutch');
-    alert2('✊ CLUTCH · CURSOR FROZEN', 'state-clutch');
+  // ── C: FIST DETECTION — normalized palm-ratio, depth-invariant ────────────
+  //
+  // palmSize = dist(wrist → middle-MCP).  Because both landmarks are on the
+  // same hand, this scales with camera distance, making the threshold
+  // self-normalizing for depth AND wrist rotation.
+  //
+  //   Extended fingertip-to-wrist ≈ 2.0 × palmSize
+  //   Folded   fingertip-to-wrist ≈ 0.8–1.0 × palmSize
+  //   FOLD_THRESH = 1.3 → clean split with a safety margin on both sides
+  //
+  const palmSize  = dist2d(lm[0], lm[9]);
+  const isFistRaw =
+    dist2d(lm[8],  lm[0]) < palmSize * FOLD_THRESH &&  // index folded
+    dist2d(lm[12], lm[0]) < palmSize * FOLD_THRESH &&  // middle folded
+    dist2d(lm[16], lm[0]) < palmSize * FOLD_THRESH &&  // ring folded
+    dist2d(lm[20], lm[0]) < palmSize * FOLD_THRESH;    // pinky folded
+
+  // ── D: CLUTCH STATE MACHINE with hysteresis ───────────────────────────────
+  //
+  // Hysteresis prevents flapping: clutch needs FIST_ENGAGE consecutive fist
+  // frames to lock, and FIST_RELEASE consecutive open frames to unlock.
+  // This absorbs depth-flicker and partial-fist noise.
+  //
+  if (isFistRaw) {
+    fistFrames++;
+    openFrames = 0;
+
+    if (!clutchActive && fistFrames >= FIST_ENGAGE) {
+      // ── ENGAGE CLUTCH ──
+      clutchActive   = true;
+      clutchCooldown = 0;
+
+      // Safety: release any held button before freezing
+      if (isDragging)  { wsSend('GEST:LEFT_UP'); isDragging = false; }
+      isPinched = false;
+
+      // Reset gesture state machine
+      scrollRefX = null; scrollRefY = null;
+      swipeRefY  = null; swipeFired = false;
+      activeGesture = 'none'; poseHoldFrames = 0;
+
+      setCursorState('clutch');
+      setMainState('clutch');
+      alert2('✊ CLUTCH · CURSOR FROZEN', 'state-clutch');
+    }
+  } else {
+    openFrames++;
+    fistFrames = 0;
+
+    if (clutchActive && openFrames >= FIST_RELEASE) {
+      // ── RELEASE CLUTCH → start cooldown ──
+      clutchActive   = false;
+      clutchCooldown = CLUTCH_COOL;
+      openFrames     = 0;
+      // Cursor stays visually frozen; cooldown absorbs the unfurl wobble
+    }
+  }
+
+  // ── E: HARD FREEZE — clutch active or cooling down ────────────────────────
+  //
+  // Symptom 2 fix: cursor is frozen during BOTH states.
+  //   • During clutchActive: obvious — user asked for a freeze.
+  //   • During clutchCooldown: absorbs the ~10–15 frame "unfurl wobble" where
+  //     finger uncurling shifts LM9, producing non-zero dx/dy we don't want.
+  //     lastHandX/Y already drained those deltas above, so the first frame
+  //     after cooldown expires will have dx ≈ 0.
+  //
+  if (clutchActive || clutchCooldown > 0) {
+    if (clutchCooldown > 0) clutchCooldown--;
+    // Re-render cursor at its frozen position (no DOM mutation = no visual jump)
+    airCursor.style.left = `${curX*100}%`;
+    airCursor.style.top  = `${curY*100}%`;
+    airLabel.style.left  = `${curX*100}%`;
+    airLabel.style.top   = `${curY*100}%`;
     return;
   }
 
-  // CRITICAL FIX: If the stabilization timer is running, block EVERYTHING. 
-  // This completely absorbs the mechanical wobble of unfurling your hand.
-  if (clutchCooldown > 0) {
-    clutchCooldown--;
-    return; 
-  }
-
-  // ── D: Apply relative movement ──
+  // ── F: TRACKING MODE — apply relative delta ───────────────────────────────
   const sens = (sensSlider.value / 10) * BASE_SPEED;
   curX = Math.max(0, Math.min(1, curX + dx * sens));
   curY = Math.max(0, Math.min(1, curY + dy * sens));
@@ -846,12 +920,11 @@ function aiLoop(lm) {
   airLabel.style.top   = `${curY*100}%`;
   sendPos(curX, curY);
 
-
-  // ── E: Finger state flags ──
+  // ── G: Finger state flags ──────────────────────────────────────────────────
   const iU = fingerUp(lm,8,6),  mU = fingerUp(lm,12,10);
   const rU = fingerUp(lm,16,14), pU = fingerUp(lm,20,18);
 
-  // ── F: INDEX PINCH → click / drag ──
+  // ── H: INDEX PINCH → click / drag ─────────────────────────────────────────
   const indexPinch = dist2d(lm[8], lm[4]) < PINCH_THRESH;
 
   if (indexPinch && !isPinched) {
@@ -897,14 +970,10 @@ function aiLoop(lm) {
 
   if (isPinched) return;
 
-  // ── G: MIDDLE PINCH → RIGHT_CLICK ──
+  // ── I: MIDDLE PINCH → RIGHT_CLICK ─────────────────────────────────────────
   const middlePinch = dist2d(lm[12], lm[4]) < PINCH_THRESH;
-
-  // Bug 3 fix: only decrement the cooldown when the pinch is OPEN.
-  // If middlePinch stays held, rightClickCd stays frozen at its current value,
-  // preventing re-fire every 40 frames while the pinch is sustained.
+  // Only decrement when pinch is open — prevents re-fire while held
   if (!middlePinch && rightClickCd > 0) rightClickCd--;
-
   if (middlePinch && rightClickCd === 0) {
     wsSend('GEST:RIGHT_CLICK');
     showAirLabel('RIGHT CLICK');
@@ -914,7 +983,7 @@ function aiLoop(lm) {
     rightClickCd = 40;
   }
 
-  // ── H+I: SCROLL / THREE-FINGER — strict state machine ──
+  // ── J: SCROLL / THREE-FINGER — strict state machine ───────────────────────
   const rawScroll = iU && mU && !rU && !pU && !middlePinch;
   const rawThree  = iU && mU && rU && !pU;
 
@@ -1168,10 +1237,18 @@ async function loop() {
     if (res.landmarks?.[0]) {
       aiLoop(res.landmarks[0]);
     } else {
-      // Bug 1 fix: hand left the frame — null the anchors so the first frame after
-      // re-entry primes a zero delta, preventing the teleport jump.
+      // Hand left the frame.
+      // ① Null the relative-tracking anchors so re-entry has zero delta.
+      // ② Reset the 1€ filter internal state to null — critical: without this
+      //    the filter lerps from its stale position to the new one on re-entry,
+      //    and every lerp-frame delta accumulates into the cursor as teleportation.
+      // ③ Reset fist/open counters so clutch detection starts fresh.
       lastHandX = null;
       lastHandY = null;
+      fX.reset(null);
+      fY.reset(null);
+      fistFrames = 0;
+      openFrames = 0;
     }
   } else {
     if (statusTimer>0 && --statusTimer===0) resetHUD();
